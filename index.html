@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+    <meta name="theme-color" content="#0d1117">
+    <meta name="description" content="Centinela — Comprueba si un enlace es seguro antes de abrirlo. Protege a tu familia del phishing y las estafas online.">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Centinela">
+
+    <title>Centinela — Tu guardián digital</title>
+
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" type="image/png" sizes="192x192" href="assets/icon-192.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="assets/icon-512.png">
+    <link rel="apple-touch-icon" href="assets/icon-192.png">
+
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- QR Scanner Library -->
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js" defer></script>
+
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div id="app">
+
+        <!-- ============================
+             ONBOARDING (primera vez)
+             ============================ -->
+        <div id="onboarding" class="overlay hidden" aria-label="Tutorial de bienvenida">
+            <div class="onboarding-container">
+                <div class="onboarding-slides">
+                    <!-- Slide 1 -->
+                    <div class="onboarding-slide active" data-slide="0">
+                        <div class="onboarding-icon">🛡️</div>
+                        <h2>¡Bienvenido a Centinela!</h2>
+                        <p>Tu guardián digital contra enlaces peligrosos. Protege a toda tu familia de estafas y phishing.</p>
+                    </div>
+                    <!-- Slide 2 -->
+                    <div class="onboarding-slide" data-slide="1">
+                        <div class="onboarding-icon">🔗</div>
+                        <h2>¿Cómo funciona?</h2>
+                        <p>Pega un enlace sospechoso, escanea un código QR o comparte directamente desde WhatsApp. Nosotros lo analizamos con más de 70 motores de seguridad.</p>
+                    </div>
+                    <!-- Slide 3 -->
+                    <div class="onboarding-slide" data-slide="2">
+                        <div class="onboarding-icon">🚦</div>
+                        <h2>Fácil como un semáforo</h2>
+                        <p><strong style="color:var(--color-safe)">Verde</strong> = seguro, <strong style="color:var(--color-warning)">Amarillo</strong> = cuidado, <strong style="color:var(--color-danger)">Rojo</strong> = ¡no abras! Así de fácil.</p>
+                    </div>
+                </div>
+                <div class="onboarding-dots">
+                    <span class="dot active" data-dot="0"></span>
+                    <span class="dot" data-dot="1"></span>
+                    <span class="dot" data-dot="2"></span>
+                </div>
+                <button id="onboarding-next" class="btn btn-primary btn-xl">Siguiente</button>
+                <button id="onboarding-skip" class="btn-text">Saltar</button>
+            </div>
+        </div>
+
+        <!-- ============================
+             HEADER
+             ============================ -->
+        <header class="header">
+            <div class="header-brand">
+                <div class="header-logo" aria-hidden="true">🛡️</div>
+                <h1 class="header-title">Centinela</h1>
+            </div>
+            <button id="btn-info" class="btn-icon" aria-label="Información sobre la app" title="Información">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="16" x2="12" y2="12"></line>
+                    <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                </svg>
+            </button>
+        </header>
+
+        <!-- ============================
+             PANTALLA PRINCIPAL
+             ============================ -->
+        <main id="screen-main" class="screen active">
+            <!-- Input de URL -->
+            <div class="input-section">
+                <label for="url-input" class="input-label">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+                        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+                    </svg>
+                    Pega aquí el enlace sospechoso
+                </label>
+                <div class="input-wrapper">
+                    <textarea id="url-input" class="url-input" placeholder="https://ejemplo.com/algo-sospechoso..." rows="2" autocomplete="off" autocorrect="off" spellcheck="false"></textarea>
+                    <button id="btn-paste" class="btn-paste" aria-label="Pegar del portapapeles" title="Pegar">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                        </svg>
+                    </button>
+                </div>
+                <button id="btn-check" class="btn btn-primary btn-xl" disabled>
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    </svg>
+                    Comprobar enlace
+                </button>
+            </div>
+
+            <!-- Separador -->
+            <div class="divider">
+                <span>o también puedes</span>
+            </div>
+
+            <!-- Acciones secundarias -->
+            <div class="secondary-actions">
+                <button id="btn-scan-qr" class="btn btn-secondary">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="3" width="7" height="7"></rect>
+                        <rect x="14" y="3" width="7" height="7"></rect>
+                        <rect x="3" y="14" width="7" height="7"></rect>
+                        <rect x="14" y="14" width="3" height="3"></rect>
+                        <line x1="20" y1="14" x2="20" y2="20"></line>
+                        <line x1="14" y1="20" x2="20" y2="20"></line>
+                    </svg>
+                    Escanear QR
+                </button>
+                <button id="btn-upload-image" class="btn btn-secondary">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                        <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                        <polyline points="21 15 16 10 5 21"></polyline>
+                    </svg>
+                    Subir imagen QR
+                </button>
+                <input type="file" id="file-input" accept="image/*" hidden aria-hidden="true">
+            </div>
+
+            <!-- Tip de seguridad -->
+            <div id="tip-section" class="tip-card">
+                <div class="tip-icon">💡</div>
+                <div class="tip-content">
+                    <span class="tip-label">¿Sabías que...?</span>
+                    <p id="tip-text">Los bancos NUNCA te pedirán tu contraseña por SMS o email.</p>
+                </div>
+            </div>
+
+            <!-- Mini historial -->
+            <div id="history-section" class="history-section">
+                <div class="history-header">
+                    <h2 class="history-title">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <polyline points="12 6 12 12 16 14"></polyline>
+                        </svg>
+                        Últimas comprobaciones
+                    </h2>
+                    <button id="btn-clear-history" class="btn-text-sm" aria-label="Borrar historial">Borrar</button>
+                </div>
+                <div id="history-list" class="history-list">
+                    <!-- Historial dinámico -->
+                </div>
+                <div id="history-empty" class="history-empty">
+                    <p>Aún no has comprobado ningún enlace.</p>
+                </div>
+            </div>
+        </main>
+
+        <!-- ============================
+             PANTALLA ESCÁNER QR
+             ============================ -->
+        <div id="screen-scanner" class="screen">
+            <div class="scanner-header">
+                <button id="btn-close-scanner" class="btn-icon btn-icon-light" aria-label="Cerrar escáner">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+                <span class="scanner-title">Apunta al código QR</span>
+            </div>
+            <div id="qr-reader" class="qr-reader-container"></div>
+            <p class="scanner-hint">Centra el código QR dentro del recuadro</p>
+        </div>
+
+        <!-- ============================
+             PANTALLA CARGANDO
+             ============================ -->
+        <div id="screen-loading" class="screen">
+            <div class="loading-container">
+                <div class="shield-animation">
+                    <div class="shield-icon">🛡️</div>
+                    <div class="shield-rings">
+                        <div class="ring ring-1"></div>
+                        <div class="ring ring-2"></div>
+                        <div class="ring ring-3"></div>
+                    </div>
+                </div>
+                <h2 class="loading-title">Analizando enlace...</h2>
+                <p class="loading-subtitle">Consultando más de 70 motores de seguridad</p>
+                <div class="loading-bar">
+                    <div class="loading-bar-fill"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============================
+             PANTALLA RESULTADO
+             ============================ -->
+        <div id="screen-result" class="screen">
+            <div class="result-container">
+                <!-- Semáforo -->
+                <div id="result-icon" class="result-traffic-light">
+                    <!-- JS inyecta icono dinámico -->
+                </div>
+                <h2 id="result-title" class="result-title">—</h2>
+                <p id="result-message" class="result-message">—</p>
+
+                <!-- URL analizada -->
+                <div id="result-url-card" class="result-url-card">
+                    <span class="result-url-label">Enlace analizado:</span>
+                    <p id="result-url" class="result-url">—</p>
+                </div>
+
+                <!-- Detalles técnicos (colapsable) -->
+                <details id="result-details" class="result-details">
+                    <summary class="result-details-toggle">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <line x1="12" y1="16" x2="12" y2="12"></line>
+                            <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                        </svg>
+                        Informe técnico detallado
+                    </summary>
+                    <div id="result-details-content" class="result-details-body">
+                        <!-- JS inyecta tabla de detalles -->
+                    </div>
+                </details>
+
+                <!-- Acciones -->
+                <div class="result-actions">
+                    <button id="btn-open-url" class="btn btn-outline">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                            <polyline points="15 3 21 3 21 9"></polyline>
+                            <line x1="10" y1="14" x2="21" y2="3"></line>
+                        </svg>
+                        Abrir web
+                    </button>
+                    <button id="btn-share" class="btn btn-primary">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="18" cy="5" r="3"></circle>
+                            <circle cx="6" cy="12" r="3"></circle>
+                            <circle cx="18" cy="19" r="3"></circle>
+                            <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+                            <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+                        </svg>
+                        Compartir
+                    </button>
+                </div>
+
+                <button id="btn-new-check" class="btn btn-secondary btn-xl btn-full">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    </svg>
+                    Comprobar otro enlace
+                </button>
+            </div>
+        </div>
+
+        <!-- ============================
+             DIALOG INFO
+             ============================ -->
+        <div id="info-dialog" class="overlay hidden" role="dialog" aria-labelledby="info-title">
+            <div class="dialog">
+                <div class="dialog-header">
+                    <h2 id="info-title" class="dialog-title">Sobre Centinela</h2>
+                    <button id="btn-close-info" class="btn-icon" aria-label="Cerrar">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                    </button>
+                </div>
+                <div class="dialog-body">
+                    <div class="info-item">
+                        <h3>🛡️ ¿Qué es Centinela?</h3>
+                        <p>Centinela es tu guardián digital. Analiza enlaces sospechosos usando más de <strong>70 motores de seguridad</strong> de VirusTotal para protegerte del phishing, malware y estafas online.</p>
+                    </div>
+                    <div class="info-item">
+                        <h3>🔒 Tu privacidad</h3>
+                        <p>No guardamos tus datos en ningún servidor. Tu historial solo existe en tu teléfono y puedes borrarlo cuando quieras.</p>
+                    </div>
+                    <div class="info-item">
+                        <h3>📱 Instálala en tu móvil</h3>
+                        <p>Pulsa <strong>"Añadir a pantalla de inicio"</strong> en tu navegador para tener Centinela siempre a mano, como una app más.</p>
+                    </div>
+                    <div class="info-item">
+                        <h3>💬 Consejo rápido</h3>
+                        <p>Cuando recibas un enlace sospechoso en WhatsApp o SMS, pulsa <strong>Compartir → Centinela</strong> para comprobarlo al instante.</p>
+                    </div>
+                    <div class="info-version">
+                        <p>Versión 2.0.0 · Desarrollado por <strong>Macias IT</strong></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============================
+             DIALOG ERROR
+             ============================ -->
+        <div id="error-dialog" class="overlay hidden" role="alertdialog" aria-labelledby="error-title">
+            <div class="dialog dialog-error">
+                <div class="dialog-header">
+                    <h2 id="error-title" class="dialog-title">⚠️ Algo salió mal</h2>
+                    <button id="btn-close-error" class="btn-icon" aria-label="Cerrar">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                    </button>
+                </div>
+                <div class="dialog-body">
+                    <p id="error-message">Ha ocurrido un error inesperado.</p>
+                    <button id="btn-error-retry" class="btn btn-primary" style="margin-top:var(--space-lg)">Reintentar</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Toast / Snackbar -->
+        <div id="toast" class="toast hidden" role="alert" aria-live="polite">
+            <span id="toast-message"></span>
+        </div>
+
+    </div>
+
+    <script type="module" src="js/app.js"></script>
+</body>
+</html>

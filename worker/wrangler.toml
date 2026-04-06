@@ -1,0 +1,7 @@
+name = "centinela-api"
+main = "src/index.js"
+compatibility_date = "2024-04-01"
+
+[vars]
+# Tu API key de VirusTotal irá aquí, la configuraremos como 'Secret' más tarde
+# VIRUSTOTAL_API_KEY = "tu_clave_aqui"
