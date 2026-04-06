@@ -4,7 +4,7 @@
 
 Centinela es una PWA (Aplicación Web Progresiva) de ciberseguridad diseñada específicamente para personas no técnicas. Permite verificar si un enlace (URL) o código QR es seguro o fraudulento en cuestión de segundos, previniendo posibles ataques de *phishing* y descargas de malware.
 
-🌍 **Enlace en vivo:** [https://master.scantxungoqr-pwa.pages.dev](https://master.scantxungoqr-pwa.pages.dev)
+🌍 **Enlace en vivo:** [https://master.scantxungoqr-pwa.pages.dev/](https://master.scantxungoqr-pwa.pages.dev/)
 
 ---
 
