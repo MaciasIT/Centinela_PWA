@@ -57,11 +57,16 @@ const els = {
     btnOpenUrl: $('btn-open-url'),
     btnShare: $('btn-share'),
     btnNewCheck: $('btn-new-check'),
+    btnPreview: $('btn-preview'),
 
     // Dialogs
     btnInfo: $('btn-info'),
     infoDialog: $('info-dialog'),
     btnCloseInfo: $('btn-close-info'),
+    previewDialog: $('preview-dialog'),
+    previewImg: $('preview-img'),
+    previewLoading: $('preview-loading'),
+    btnClosePreview: $('btn-close-preview'),
     errorDialog: $('error-dialog'),
     errorMessage: $('error-message'),
     btnCloseError: $('btn-close-error'),
@@ -118,6 +123,40 @@ function showError(message, retryAction = null) {
 
 function closeError() {
     els.errorDialog.classList.add('hidden');
+}
+
+/* ============================================
+   Safe Preview Logic
+   ============================================ */
+function openPreview() {
+    if (!currentUrl) return;
+
+    // Preparar UI
+    els.previewImg.src = '';
+    els.previewImg.classList.add('hidden');
+    els.previewLoading.classList.remove('hidden');
+    els.previewDialog.classList.remove('hidden');
+    els.previewLoading.innerHTML = '<div class="spinner"></div> Generando imagen segura...';
+
+    // Cargar imagen de WordPress mshots (Servicio gratuito y sin registro)
+    // Nota: La primera vez que se pide una web puede tardar unos segundos en generarse
+    const previewUrl = `https://s.wordpress.com/mshots/v1/${encodeURIComponent(currentUrl)}?w=1200`;
+
+    els.previewImg.onload = () => {
+        els.previewLoading.classList.add('hidden');
+        els.previewImg.classList.remove('hidden');
+    };
+
+    els.previewImg.onerror = () => {
+        els.previewLoading.innerHTML = '❌ No se pudo cargar la vista previa de este sitio.';
+    };
+
+    els.previewImg.src = previewUrl;
+    hapticFeedback('light');
+}
+
+function closePreview() {
+    els.previewDialog.classList.add('hidden');
 }
 
 /* ============================================
@@ -554,6 +593,8 @@ function initEventListeners() {
         renderHistory();
     });
 
+    els.btnPreview.addEventListener('click', openPreview);
+
     // --- Info Dialog ---
     els.btnInfo.addEventListener('click', () => {
         els.infoDialog.classList.remove('hidden');
@@ -565,6 +606,12 @@ function initEventListeners() {
         if (e.target === els.infoDialog) {
             els.infoDialog.classList.add('hidden');
         }
+    });
+
+    // --- Preview Dialog ---
+    els.btnClosePreview.addEventListener('click', closePreview);
+    els.previewDialog.addEventListener('click', (e) => {
+        if (e.target === els.previewDialog) closePreview();
     });
 
     // --- Error Dialog ---

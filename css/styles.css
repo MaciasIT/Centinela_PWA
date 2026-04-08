@@ -1305,6 +1305,64 @@ textarea, input { font-family: inherit; }
     outline-offset: 2px;
 }
 
+/* ---- Preview Dialog ---- */
+.dialog-preview {
+    max-width: 90vw;
+    width: 440px;
+}
+
+.preview-frame {
+    width: 100%;
+    aspect-ratio: 16 / 10;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.preview-img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    animation: fadeIn var(--t-slow) ease-out;
+}
+
+.preview-status {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--sp-md);
+    color: var(--text-secondary);
+    font-size: var(--fs-sm);
+}
+
+.spinner {
+    width: 24px;
+    height: 24px;
+    border: 3px solid rgba(59, 130, 246, 0.2);
+    border-top-color: var(--color-primary);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.preview-warning {
+    margin-top: var(--sp-lg);
+    font-size: var(--fs-xs);
+    color: var(--text-muted);
+    background: rgba(255, 255, 255, 0.03);
+    padding: var(--sp-md);
+    border-radius: var(--radius-sm);
+    line-height: var(--lh-relaxed);
+}
+
 /* ---- Print styles ---- */
 @media print {
     body { background: white; color: black; }

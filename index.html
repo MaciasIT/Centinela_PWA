@@ -254,6 +254,13 @@
 
                 <!-- Acciones -->
                 <div class="result-actions">
+                    <button id="btn-preview" class="btn btn-secondary">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                            <circle cx="12" cy="12" r="3"></circle>
+                        </svg>
+                        Vista Previa
+                    </button>
                     <button id="btn-open-url" class="btn btn-outline">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
@@ -339,6 +346,35 @@
                 <div class="dialog-body">
                     <p id="error-message">Ha ocurrido un error inesperado.</p>
                     <button id="btn-error-retry" class="btn btn-primary" style="margin-top:var(--space-lg)">Reintentar</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============================
+             DIALOG PREVIEW
+             ============================ -->
+        <div id="preview-dialog" class="overlay hidden" role="dialog" aria-labelledby="preview-title">
+            <div class="dialog dialog-preview">
+                <div class="dialog-header">
+                    <h2 id="preview-title" class="dialog-title">📸 Vista Previa Segura</h2>
+                    <button id="btn-close-preview" class="btn-icon" aria-label="Cerrar">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                    </button>
+                </div>
+                <div class="dialog-body">
+                    <div id="preview-frame" class="preview-frame">
+                        <div id="preview-loading" class="preview-status">
+                            <div class="spinner"></div>
+                            Generando imagen segura...
+                        </div>
+                        <img id="preview-img" src="" alt="Vista previa de la web" class="preview-img hidden">
+                    </div>
+                    <p class="preview-warning">
+                        <strong>🛡️ Entorno Aislado:</strong> Lo que ves es una fotografía. No hay riesgo de virus, robo de datos ni interacciones maliciosas.
+                    </p>
                 </div>
             </div>
         </div>
