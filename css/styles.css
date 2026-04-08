@@ -838,6 +838,52 @@ textarea, input { font-family: inherit; }
     max-width: 340px;
 }
 
+/* ---- Brand Check ---- */
+.result-brand {
+    width: 100%;
+    padding: var(--sp-md) var(--sp-lg);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--sp-lg);
+    text-align: left;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.result-brand.official {
+    background: rgba(16, 185, 129, 0.1);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.result-brand.suspicious {
+    background: rgba(245, 158, 11, 0.1);
+    border: 1px solid rgba(245, 158, 11, 0.4);
+    animation: shake 0.5s ease-in-out;
+}
+
+.brand-badge {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-sm);
+    font-weight: var(--fw-bold);
+    font-size: var(--fs-sm);
+}
+
+.official .brand-badge { color: #10b981; }
+.suspicious .brand-badge { color: #f59e0b; }
+
+.brand-detail {
+    font-size: var(--fs-xs);
+    color: var(--text-secondary);
+    line-height: var(--lh-relaxed);
+}
+
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-4px); }
+    75% { transform: translateX(4px); }
+}
+
 .result-url-card {
     width: 100%;
     padding: var(--sp-md) var(--sp-lg);

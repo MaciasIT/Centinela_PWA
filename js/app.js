@@ -8,6 +8,7 @@ import { startScanner, stopScanner, scanFromImage } from './scanner.js';
 import { getHistory, addToHistory, clearHistory, formatDate, extractDomain } from './history.js';
 import { getRandomTip } from './tips.js';
 import { shareResult, copyToClipboard, checkSharedUrl, hapticFeedback } from './share.js';
+import { checkBrandIdentity } from './brands.js';
 
 /* ============================================
    DOM References
@@ -53,6 +54,10 @@ const els = {
     resultFinalUrl: $('result-final-url'),
     resultPageTitle: $('result-page-title'),
     resultDetails: $('result-details'),
+    resultBrand: $('result-brand'),
+    brandIcon: $('brand-icon'),
+    brandMsg: $('brand-msg'),
+    brandDetail: $('brand-detail'),
     resultDetailsContent: $('result-details-content'),
     btnOpenUrl: $('btn-open-url'),
     btnShare: $('btn-share'),
@@ -343,6 +348,25 @@ function renderResult(result) {
     // URL
     els.resultUrl.textContent = currentUrl;
     
+    // Identificación de Marca (Phishing Finder)
+    const domain = extractDomain(currentUrl);
+    const finalDomain = result.finalUrl ? extractDomain(result.finalUrl) : null;
+    
+    // Comprobar tanto la URL original como la final (por si es un acortador que lleva a un phishing)
+    const brandInfo = checkBrandIdentity(domain) || (finalDomain ? checkBrandIdentity(finalDomain) : null);
+    
+    if (brandInfo) {
+        els.resultBrand.style.display = 'flex';
+        els.resultBrand.className = 'result-brand ' + (brandInfo.isOfficial ? 'official' : 'suspicious');
+        els.brandIcon.textContent = brandInfo.isOfficial ? '✅' : '⚠️';
+        els.brandMsg.textContent = brandInfo.isOfficial ? 'Identidad Oficial: ' + brandInfo.brandName : '¡Posible Suplantación!';
+        els.brandDetail.textContent = brandInfo.isOfficial 
+            ? `Este es un dominio oficial confirmado de ${brandInfo.brandName}.` 
+            : `Esta web utiliza el nombre de ${brandInfo.brandName} pero NO parece ser su sitio oficial. Ten mucho cuidado si te piden datos.`;
+    } else {
+        els.resultBrand.style.display = 'none';
+    }
+
     // X-Ray / Redirección (Efecto Rayos X)
     if (result.finalUrl && result.finalUrl !== currentUrl && !result.finalUrl.endsWith(currentUrl) && !currentUrl.endsWith(result.finalUrl)) {
         els.resultFinalUrl.textContent = result.finalUrl;
