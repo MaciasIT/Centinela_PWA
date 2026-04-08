@@ -863,6 +863,64 @@ textarea, input { font-family: inherit; }
     font-weight: var(--fw-medium);
 }
 
+/* ---- X-Ray Feature ---- */
+.result-xray {
+    width: 100%;
+    padding: var(--sp-md) var(--sp-lg);
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(59, 130, 246, 0.05));
+    border: 1px solid rgba(139, 92, 246, 0.3);
+    border-radius: var(--radius-md);
+    text-align: left;
+    position: relative;
+    overflow: hidden;
+    animation: pulseBorder 3s ease-in-out infinite;
+}
+
+@keyframes pulseBorder {
+    0%, 100% { border-color: rgba(139, 92, 246, 0.3); }
+    50% { border-color: rgba(139, 92, 246, 0.6); }
+}
+
+.xray-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--sp-sm);
+}
+
+.xray-tag {
+    font-size: 0.65rem;
+    font-weight: var(--fw-bold);
+    background: var(--color-primary);
+    color: white;
+    padding: 2px 6px;
+    border-radius: 4px;
+    text-transform: uppercase;
+}
+
+.xray-title-text {
+    font-size: var(--fs-xs);
+    color: var(--text-muted);
+    font-weight: var(--fw-semibold);
+}
+
+.result-final-url {
+    font-size: var(--fs-sm);
+    color: var(--color-primary);
+    font-weight: var(--fw-bold);
+    word-break: break-all;
+    margin-bottom: 4px;
+}
+
+.result-page-title {
+    font-size: var(--fs-xs);
+    color: var(--text-secondary);
+    font-style: italic;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 /* Result Details (Technical Report) */
 .result-details {
     width: 100%;

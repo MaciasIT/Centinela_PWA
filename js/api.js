@@ -95,6 +95,8 @@ export async function analyzeUrl(url) {
             engines: data.engines ?? extractEngines(data),
             permalink: data.permalink ?? null,
             url: normalizedUrl,
+            finalUrl: vtAttributes.last_final_url || null,
+            title: vtAttributes.title || null,
             fromCache: false,
         };
 

@@ -49,6 +49,9 @@ const els = {
     resultMessage: $('result-message'),
     resultUrl: $('result-url'),
     resultUrlCard: $('result-url-card'),
+    resultXray: $('result-xray'),
+    resultFinalUrl: $('result-final-url'),
+    resultPageTitle: $('result-page-title'),
     resultDetails: $('result-details'),
     resultDetailsContent: $('result-details-content'),
     btnOpenUrl: $('btn-open-url'),
@@ -300,6 +303,15 @@ function renderResult(result) {
 
     // URL
     els.resultUrl.textContent = currentUrl;
+    
+    // X-Ray / Redirección (Efecto Rayos X)
+    if (result.finalUrl && result.finalUrl !== currentUrl && !result.finalUrl.endsWith(currentUrl) && !currentUrl.endsWith(result.finalUrl)) {
+        els.resultFinalUrl.textContent = result.finalUrl;
+        els.resultPageTitle.textContent = result.title || '';
+        els.resultXray.style.display = 'block';
+    } else {
+        els.resultXray.style.display = 'none';
+    }
 
     // Botón abrir (solo si es seguro)
     els.btnOpenUrl.style.display = status === 'danger' ? 'none' : 'inline-flex';
