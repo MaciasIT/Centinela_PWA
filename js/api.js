@@ -92,6 +92,8 @@ export async function analyzeUrl(url) {
             harmless: harmless,
             undetected: undetected,
             scanDate: data.scan_date ?? vtAttributes.last_analysis_date ?? Date.now()/1000,
+            firstSubmissionDate: vtAttributes.first_submission_date || null,
+            lastAnalysisDate: vtAttributes.last_analysis_date || null,
             engines: data.engines ?? extractEngines(data),
             permalink: data.permalink ?? null,
             url: normalizedUrl,

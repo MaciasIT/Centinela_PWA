@@ -57,7 +57,9 @@ const els = {
     resultBrand: $('result-brand'),
     brandIcon: $('brand-icon'),
     brandMsg: $('brand-msg'),
-    brandDetail: $('brand-detail'),
+    resultTrust: $('result-trust'),
+    trustMsg: $('trust-msg'),
+    trustIcon: $('trust-icon'),
     resultDetailsContent: $('result-details-content'),
     btnOpenUrl: $('btn-open-url'),
     btnShare: $('btn-share'),
@@ -186,6 +188,33 @@ function updateSosButton(status) {
         els.btnSos.style.display = 'inline-flex';
     } else {
         els.btnSos.style.display = 'none';
+    }
+}
+
+/* ============================================
+   Trust Level Logic
+   ============================================ */
+function renderTrustLevel(result) {
+    if (!result.firstSubmissionDate) {
+        els.resultTrust.style.display = 'none';
+        return;
+    }
+
+    const firstSeen = new Date(result.firstSubmissionDate * 1000);
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+
+    els.resultTrust.style.display = 'flex';
+    els.resultTrust.className = 'result-trust'; // Reset
+
+    if (firstSeen > sixMonthsAgo) {
+        els.resultTrust.classList.add('new');
+        els.trustMsg.textContent = 'Sitio Muy Reciente';
+        els.trustIcon.textContent = '⏳';
+    } else {
+        els.resultTrust.classList.add('old');
+        els.trustMsg.textContent = 'Sitio Establecido';
+        els.trustIcon.textContent = '🕰️';
     }
 }
 
@@ -403,6 +432,9 @@ function renderResult(result) {
 
     // Botón abrir (solo si es seguro)
     els.btnOpenUrl.style.display = status === 'danger' ? 'none' : 'inline-flex';
+
+    // Trust Level (Antigüedad)
+    renderTrustLevel(result);
 
     // Modo Ángel de la Guarda (SOS)
     updateSosButton(status);
