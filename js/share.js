@@ -25,7 +25,7 @@ export async function shareResult(url, result) {
         statusText = 'SOSPECHOSO';
     }
 
-    const shareText = `${emoji} He comprobado este enlace con Centinela y es ${statusText}:\n\n${url}\n\n${result.positives}/${result.total} motores de seguridad lo han marcado como peligroso.\n\n🛡️ Comprueba tus enlaces en: centinela.pages.dev`;
+    const shareText = `${emoji} He comprobado este enlace con Centinela y es ${statusText}:\n\n${url}\n\n${result.positives}/${result.total} motores de seguridad lo han marcado como peligroso.\n\n🛡️ Comprueba tus enlaces en: centinela-pwa.pages.dev`;
 
     // Intentar Web Share API (nativo en móvil)
     if (navigator.share) {
