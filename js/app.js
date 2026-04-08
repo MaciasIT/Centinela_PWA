@@ -621,7 +621,14 @@ function init() {
     // 5. Conectar event listeners
     initEventListeners();
 
-    // 6. Comprobar si se abrió vía Web Share Target
+    // 6. Comprobar si se abrió vía Web Share Target o Shortcut
+    const urlParams = new URLSearchParams(window.location.search);
+    
+    // Acceso directo: Escanear
+    if (urlParams.get('action') === 'scan') {
+        openScanner();
+    }
+
     const sharedUrl = checkSharedUrl();
     if (sharedUrl) {
         els.urlInput.value = sharedUrl;

@@ -66,6 +66,23 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
+    // Manejar Web Share Target POST
+    if (request.method === 'POST' && url.pathname === '/share-target') {
+        event.respondWith(
+            (async () => {
+                const formData = await request.formData();
+                const title = formData.get('title') || '';
+                const text = formData.get('text') || '';
+                const sharedUrl = formData.get('url') || '';
+                
+                // Redirigir a la home con los datos en la URL para que el JS los procese
+                const redirectUrl = `/?title=${encodeURIComponent(title)}&text=${encodeURIComponent(text)}&url=${encodeURIComponent(sharedUrl)}`;
+                return Response.redirect(redirectUrl, 303);
+            })()
+        );
+        return;
+    }
+
     // Para navegación (HTML), intentar red primero
     if (request.mode === 'navigate') {
         event.respondWith(
