@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manual de Seguridad — Centinela</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <style>
+        body {
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            padding: var(--sp-xl);
+            max-width: 600px;
+            margin: 0 auto;
+            line-height: var(--lh-relaxed);
+        }
+        .manual-header {
+            text-align: center;
+            margin-bottom: var(--sp-2xl);
+        }
+        .manual-header h1 {
+            font-size: var(--fs-2xl);
+            margin-top: var(--sp-md);
+        }
+        .step {
+            background: var(--bg-secondary);
+            padding: var(--sp-xl);
+            border-radius: var(--radius-lg);
+            margin-bottom: var(--sp-xl);
+            border: 1px solid var(--border-color);
+        }
+        .step h2 {
+            font-size: var(--fs-lg);
+            color: var(--color-primary);
+            margin-bottom: var(--sp-md);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .semaforo {
+            display: flex;
+            flex-direction: column;
+            gap: var(--sp-md);
+            margin: var(--sp-lg) 0;
+        }
+        .luz {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: var(--sp-md);
+            border-radius: var(--radius-md);
+            background: rgba(255, 255, 255, 0.03);
+        }
+        .circulo {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        .circulo.verde { background: #10b981; box-shadow: 0 0 10px #10b981; }
+        .circulo.naranja { background: #f59e0b; box-shadow: 0 0 10px #f59e0b; }
+        .circulo.rojo { background: #ef4444; box-shadow: 0 0 10px #ef4444; }
+        
+        .btn-back {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--color-primary);
+            text-decoration: none;
+            font-weight: var(--fw-bold);
+            margin-bottom: var(--sp-xl);
+        }
+        .footer {
+            text-align: center;
+            color: var(--text-muted);
+            font-size: var(--fs-xs);
+            margin-top: var(--sp-2xl);
+        }
+    </style>
+</head>
+<body>
+    <a href="index.html" class="btn-back">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
+        Volver a la App
+    </a>
+
+    <header class="manual-header">
+        <img src="assets/icon-192.png" width="80" alt="Centinela">
+        <h1>Guía de Seguridad</h1>
+        <p>Aprende a protegerte en el mundo digital con Centinela.</p>
+    </header>
+
+    <div class="step">
+        <h2>1. ¿Cómo analizar algo?</h2>
+        <p>Tienes tres formas de protegerte:</p>
+        <ul>
+            <li><strong>Copiar y Pegar:</strong> Pega cualquier enlace que recibas por SMS o WhatsApp.</li>
+            <li><strong>Escanear QR:</strong> Usa la cámara para ver a dónde lleva un código QR antes de abrirlo.</li>
+            <li><strong>Compartir:</strong> En WhatsApp, mantén pulsado un enlace y dale a "Compartir" → "Centinela".</li>
+        </ul>
+    </div>
+
+    <div class="step">
+        <h2>2. Entender el Semáforo</h2>
+        <p>Centinela analiza el enlace por ti y te da un veredicto claro:</p>
+        <div class="semaforo">
+            <div class="luz">
+                <div class="circulo verde"></div>
+                <div>
+                    <strong>TODO OK:</strong> El sitio parece seguro y la identidad coincide con la marca oficial.
+                </div>
+            </div>
+            <div class="luz">
+                <div class="circulo naranja"></div>
+                <div>
+                    <strong>SOSPECHOSO:</strong> Alguien ha avisado de algo raro o el sitio intenta imitar a un banco pero usa un nombre extraño.
+                </div>
+            </div>
+            <div class="luz">
+                <div class="circulo rojo"></div>
+                <div>
+                    <strong>PELIGROSO:</strong> Se ha detectado virus o estafa confirmada. ¡Cierra la página inmediatamente!
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="step">
+        <h2>3. Uso de Superpoderes</h2>
+        <p>Si el resultado no es verde, usa tus herramientas:</p>
+        <ul>
+            <li><strong>🕵️ Rayos X:</strong> Te dirá a dónde va realmente un enlace corto.</li>
+            <li><strong>📸 Vista Previa:</strong> Mira la web sin entrar en ella. Es una foto segura.</li>
+            <li><strong>👼 Ángel de la Guarda:</strong> Si no sabes qué hacer, pulsa para enviarle el informe a tu experto de confianza.</li>
+        </ul>
+    </div>
+
+    <footer class="footer">
+        <p>Desarrollado con ❤️ por Macias IT</p>
+        <p>Versión 2.1.0 — Protegiendo a tu familia</p>
+    </footer>
+</body>
+</html>

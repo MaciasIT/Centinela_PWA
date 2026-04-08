@@ -1,6 +1,6 @@
 # 🛡️ Centinela — Tu Guardián Digital
 
-![Centinela Hero](assets/icon-512.png)
+![Centinela Hero](assets/banner.png)
 
 Centinela es una PWA (Aplicación Web Progresiva) de ciberseguridad diseñada específicamente para personas no técnicas. Permite verificar si un enlace (URL) o código QR es seguro o fraudulento en cuestión de segundos, previniendo posibles ataques de *phishing* y descargas de malware.
 
@@ -10,35 +10,53 @@ Centinela es una PWA (Aplicación Web Progresiva) de ciberseguridad diseñada es
 
 ## 🎯 Objetivo y Filosofía
 
-Esta aplicación sucede a la versión anterior "ScanTxungoQR", habiendo sido rediseñada desde cero ("A prueba de abuelas") con un solo objetivo en mente: **Hacer que la ciberseguridad sea amigable y accesible para toda tu familia**.
+Esta aplicación ha sido rediseñada desde cero ("A prueba de abuelas") con un solo objetivo en mente: **Hacer que la ciberseguridad sea amigable y accesible para toda tu familia**.
 
-En lugar de lanzar informes técnicos en la cara del usuario, Centinela usa un **Sistema de Semáforos** extremadamente claro:
-- 🟢 **Verde (Seguro):** Ningún motor de seguridad ha encontrado actividad fuera de lo común.
-- 🟡 **Naranja (Sospechoso):** Existen alertas menores. La app aconseja precaución.
-- 🔴 **Rojo (Peligroso):** Escáner positivo para Malware o Phishing en múltiple motores. Alerta máxima.
-
-*(Para los usuarios avanzados, Centinela sigue deparando un menú colapsable donde consultar el detalle numérico exacto proveniente de la API).*
+En lugar de lanzar informes técnicos, Centinela usa un **Sistema de Semáforos** claro:
+- 🟢 **Seguro:** Ningún motor de seguridad ha encontrado actividad sospechosa.
+- 🟡 **Sospechoso:** Existen alertas o la identidad del sitio no está clara.
+- 🔴 **Peligroso:** Positivo para Malware o Phishing. **¡No entres!**
 
 ---
 
-## ✨ Características Principales
+## ✨ Superpoderes Incluidos (v2.1+)
 
-- 📱 **Instalable sin tiendas:** Al ser una PWA completa, puedes "Añadir a la pantalla de inicio" desde tu teléfono (sea Android o Safari en iOS) y usarla de forma nativa sin pasar por las tiendas oficiales.
-- 🚀 **Integración profunda (Web Share Target):** Centinela se añade mágicamente al menú de "Compartir" de tu móvil. Si alguien en WhatsApp te pasa un enlace o QR sospechoso, solo tienes que mantenerlo pulsado y compartirlo directamente a Centinela para analizarlo en 1 segundo.
-- 📷 **Reconocimiento QR Híbrido:** ¿No quieres entrar al enlace cifrado del QR? Abre la cámara o adjunta la imagen para analizar a dónde apunta antes de visitarlo.
-- 💨 **Offline first y Ultraligera:** Su caché se encarga de reaccionar sin problemas a recargas gracias a un poderoso Service Worker propio.
+Centinela ahora incluye funciones avanzadas de protección que no encontrarás en otros escáneres:
 
-## 🛠️ Stack Tecnológico v2.0
+### 🕵️ Efecto Rayos X (Anti-Redirecciones)
+¿Te han pasado un enlace corto tipo `bit.ly` o `t.co`? Centinela lo atraviesa para mostrarte la **URL real de destino** y el título de la página antes de que hagas clic.
 
-Para mantener la base asombrosamente ligera y sin costuras o librerías pesadas previas (se han suprimido React, MUI, etc), la app consta de:
+### 📸 Vista Previa Segura (Aislamiento Total)
+¿Tienes curiosidad pero te da miedo entrar? Con un toque, genera una **fotografía real** de la web. Podrás ver su aspecto sin que tu móvil llegue a interactuar nunca con el sitio malicioso.
 
-- **Frontend:** Vanilla HTML, JS (módulos ES6) y CSS.
-- **Backend (API Proxy):** Cloudflare Workers.
-- **Seguridad:** [VirusTotal v3 API](https://developers.virustotal.com/reference/overview).
+### 🏢 Detector de Identidad (Anti-Phishing)
+Centinela conoce los dominios oficiales de bancos (CaixaBank, Santander, etc.) y marcas (Amazon, PayPal). Si una web intenta imitar a una de estas marcas pero usa un dominio falso, Centinela te avisará a gritos: **"¡Posible Suplantación!"**.
 
-## 🪛 Arquitectura del Proxy de Cloudflare (Centinela-API)
+### 👼 Modo Ángel de la Guarda (Botón SOS)
+Configura el teléfono de una persona de confianza (tu "experto"). Si Centinela te da un aviso naranja y no sabes qué hacer, pulsa **"Preguntar"** para enviarle automáticamente un informe por WhatsApp a tu experto.
 
-Puesto que los navegadores bloquean las peticiones originadas desde dominios distintos (CORS) y VirusTotal requiere que escondas tu contraseña (API Key), el proyecto dispone de la carpeta oculta `worker/`. Consiste en un script backend sin servidor (*Serverless*) en Cloudflare que recibe las de URLs de la app de frontend, implementa matemáticas de validación, reintentos asíncronos para peticiones «en cola», y escupe los datos limpios.
+---
+
+## 📱 Instalación y Uso Móvil
+
+Al ser una PWA, Centinela se comporta como una App nativa:
+1.  **Instalación:** Dale a "Añadir a pantalla de inicio" en tu navegador.
+2.  **Menú Compartir:** Centinela aparece en el menú de "Compartir" de Android e iOS. Mantén pulsado un enlace en WhatsApp y envíalo directamente a Centinela.
+3.  **Accesos Directos:** Mantén pulsado el icono en tu pantalla de inicio para abrir directamente el escáner de códigos QR.
+
+---
+
+## 🛠️ Stack Tecnológico
+
+- **Frontend:** HTML5, CSS3 (Vanilla) y JS (ES6 Modules).
+- **Backend:** Cloudflare Workers (Serverless Proxy).
+- **Inteligencia:** VirusTotal v3 API.
+- **Visualización:** WordPress mshots API.
+
+---
+
+## 📖 Manual de Usuario
+Puedes consultar la [Guía Completa de Seguridad](manual.html) dentro de la propia aplicación o en el archivo del repositorio.
 
 ## 🤝 Colaboradores
-Proyecto original mantenido y rehecho por [Michel Macias](https://github.com/MaciasIT).
+Proyecto mantenido y desarrollado por [Michel Macias](https://github.com/MaciasIT).
