@@ -26,33 +26,41 @@ export const OFFICIAL_BRANDS = [
 
 /**
  * Comprueba si un dominio es una suplantación de una marca conocida
- * @param {string} domain 
+ * @param {string} domainOrUrl 
  * @returns {object|null} { brandName, isOfficial, suspicious }
  */
-export function checkBrandIdentity(domain) {
-    if (!domain) return null;
+export function checkBrandIdentity(domainOrUrl) {
+    if (!domainOrUrl) return null;
     
-    domain = domain.toLowerCase();
+    // 1. Limpieza y normalización
+    let domain = domainOrUrl.toLowerCase().trim();
+    
+    // Si es una URL completa, extraer solo el host
+    if (domain.includes('://')) {
+        try { domain = new URL(domain).hostname; } catch(e) {}
+    }
+    // Quitar "www." si existe
+    domain = domain.replace(/^www\./, '');
 
     for (const brand of OFFICIAL_BRANDS) {
-        // 1. ¿Es el dominio oficial?
+        // 2. ¿Es el dominio oficial?
         const isOfficial = brand.domains.some(d => domain === d || domain.endsWith('.' + d));
         if (isOfficial) {
             return { brandName: brand.name, isOfficial: true };
         }
 
-        // 2. ¿Es una suplantación?
-        // Buscamos si el nombre de la marca está contenido en el dominio
+        // 3. ¿Es una suplantación?
+        // Buscamos si el nombre de la marca está contenido de forma sospechosa
         const brandKey = brand.name.toLowerCase().replace(/\s/g, '').replace(/[+]/g, '');
         
-        // Si el dominio contiene el nombre de la marca pero no es oficial -> Sospechoso
-        // Ejemplo: "caixabank-login.tk" o "verificar-amazon.xyz"
-        if (domain.includes(brandKey)) {
+        // Si el dominio contiene el nombre de la marca (ej: "santander") pero no es oficial -> Sospechoso
+        // Usamos una expresión regular para evitar falsos positivos con palabras cortas
+        const regex = new RegExp(brandKey, 'i');
+        if (regex.test(domain)) {
             return { brandName: brand.name, isOfficial: false, suspicious: true };
         }
 
-        // 3. Detección de variaciones comunes (Typosquatting sencillo)
-        // Por ejemplo, si el dominio se parece mucho a la marca pero tiene una letra distinta
+        // 4. Detección de variaciones visuales (Typosquatting)
         if (isSimilar(domain, brandKey)) {
             return { brandName: brand.name, isOfficial: false, suspicious: true };
         }
