@@ -19,21 +19,24 @@ En lugar de lanzar informes técnicos, Centinela usa un **Sistema de Semáforos*
 
 ---
 
-## ✨ Superpoderes Incluidos (v2.1+)
+## ✨ Superpoderes Incluidos (v3.0)
 
 Centinela ahora incluye funciones avanzadas de protección que no encontrarás en otros escáneres:
 
 ### 🕵️ Efecto Rayos X (Anti-Redirecciones)
-¿Te han pasado un enlace corto tipo `bit.ly` o `t.co`? Centinela lo atraviesa para mostrarte la **URL real de destino** y el título de la página antes de que hagas clic.
+Atraviesa enlaces acortados para mostrarte la **URL real de destino** antes de que hagas clic.
 
 ### 📸 Vista Previa Segura (Aislamiento Total)
-¿Tienes curiosidad pero te da miedo entrar? Con un toque, genera una **fotografía real** de la web. Podrás ver su aspecto sin que tu móvil llegue a interactuar nunca con el sitio malicioso.
+Genera una **fotografía real** de la web. Mira su aspecto sin riesgo de interacción maliciosa.
 
 ### 🏢 Detector de Identidad (Anti-Phishing)
-Centinela conoce los dominios oficiales de bancos (CaixaBank, Santander, etc.) y marcas (Amazon, PayPal). Si una web intenta imitar a una de estas marcas pero usa un dominio falso, Centinela te avisará a gritos: **"¡Posible Suplantación!"**.
+Detección de suplantación de marcas oficiales (Bancos, Amazon, PayPal).
+
+### 🕰️ Radar de Confianza (Antigüedad)
+Centinela analiza la edad del dominio. Los sitios creados recientemente (menos de 6 meses) se marcan con precaución especial, previniendo estafas de nueva creación.
 
 ### 👼 Modo Ángel de la Guarda (Botón SOS)
-Configura el teléfono de una persona de confianza (tu "experto"). Si Centinela te da un aviso naranja y no sabes qué hacer, pulsa **"Preguntar"** para enviarle automáticamente un informe por WhatsApp a tu experto.
+Configura un contacto de confianza para consultarle dudas vía WhatsApp con un solo toque.
 
 ---
 
