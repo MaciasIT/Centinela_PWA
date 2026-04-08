@@ -270,6 +270,12 @@
                         </svg>
                         Vista Previa
                     </button>
+                    <button id="btn-sos" class="btn btn-warning" style="display: none;">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                        </svg>
+                        Preguntar
+                    </button>
                     <button id="btn-open-url" class="btn btn-outline">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
@@ -326,6 +332,15 @@
                     <div class="info-item">
                         <h3>📱 Instálala en tu móvil</h3>
                         <p>Pulsa <strong>"Añadir a pantalla de inicio"</strong> en tu navegador para tener Centinela siempre a mano, como una app más.</p>
+                    </div>
+                    <div class="info-item">
+                        <h3>👼 Modo Ángel de la Guarda</h3>
+                        <p>¿No estás seguro de un resultado? Guarda el teléfono de tu "experto" de confianza (hijo, sobrino, amigo) para consultarle con un toque.</p>
+                        <div class="guardian-config">
+                            <input type="tel" id="guardian-phone" placeholder="Ej: 34600112233" class="input-tiny">
+                            <button id="btn-save-guardian" class="btn btn-primary btn-xs">Guardar</button>
+                        </div>
+                        <p id="guardian-status" class="guardian-status"></p>
                     </div>
                     <div class="info-item">
                         <h3>💬 Consejo rápido</h3>

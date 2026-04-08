@@ -1409,6 +1409,45 @@ textarea, input { font-family: inherit; }
     line-height: var(--lh-relaxed);
 }
 
+/* ---- Guardian Angel ---- */
+.info-item .guardian-config {
+    display: flex;
+    gap: var(--sp-xs);
+    margin: var(--sp-sm) 0;
+}
+
+.input-tiny {
+    flex: 1;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    padding: 6px 12px;
+    font-size: var(--fs-xs);
+}
+
+.btn-xs {
+    padding: 6px 12px;
+    font-size: var(--fs-xs);
+}
+
+.guardian-status {
+    font-size: 10px;
+    color: #10b981;
+    margin-top: 4px;
+    min-height: 14px;
+}
+
+.btn-warning {
+    background: #f59e0b;
+    color: white;
+    border: none;
+}
+
+.btn-warning:hover {
+    background: #d97706;
+}
+
 /* ---- Print styles ---- */
 @media print {
     body { background: white; color: black; }

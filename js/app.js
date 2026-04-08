@@ -63,11 +63,15 @@ const els = {
     btnShare: $('btn-share'),
     btnNewCheck: $('btn-new-check'),
     btnPreview: $('btn-preview'),
+    btnSos: $('btn-sos'),
 
     // Dialogs
     btnInfo: $('btn-info'),
     infoDialog: $('info-dialog'),
     btnCloseInfo: $('btn-close-info'),
+    guardianPhone: $('guardian-phone'),
+    btnSaveGuardian: $('btn-save-guardian'),
+    guardianStatus: $('guardian-status'),
     previewDialog: $('preview-dialog'),
     previewImg: $('preview-img'),
     previewLoading: $('preview-loading'),
@@ -89,6 +93,7 @@ let currentUrl = '';
 let currentResult = null;
 let toastTimeout = null;
 let lastRetryAction = null;
+const GUARDIAN_KEY = 'centinela_guardian_phone';
 
 /* ============================================
    Screen Management
@@ -161,7 +166,27 @@ function openPreview() {
 }
 
 function closePreview() {
-    els.previewDialog.classList.add('hidden');
+    els.previewDialog.classList.remove('hidden');
+}
+
+/* ============================================
+   Guardian Angel Logic
+   ============================================ */
+function initGuardian() {
+    const saved = localStorage.getItem(GUARDIAN_KEY);
+    if (saved) {
+        els.guardianPhone.value = saved;
+    }
+}
+
+function updateSosButton(status) {
+    const phone = localStorage.getItem(GUARDIAN_KEY);
+    // Mostrar si hay teléfono Y el resultado no es 'safe'
+    if (phone && status !== 'safe') {
+        els.btnSos.style.display = 'inline-flex';
+    } else {
+        els.btnSos.style.display = 'none';
+    }
 }
 
 /* ============================================
@@ -378,6 +403,9 @@ function renderResult(result) {
 
     // Botón abrir (solo si es seguro)
     els.btnOpenUrl.style.display = status === 'danger' ? 'none' : 'inline-flex';
+
+    // Modo Ángel de la Guarda (SOS)
+    updateSosButton(status);
 
     // Detalles técnicos
     renderTechnicalDetails(result, status);
@@ -638,6 +666,31 @@ function initEventListeners() {
         if (e.target === els.previewDialog) closePreview();
     });
 
+    // --- Guardian Angel ---
+    els.btnSaveGuardian.addEventListener('click', () => {
+        const phone = els.guardianPhone.value.trim().replace(/\D/g, ''); // Solo números
+        if (phone) {
+            localStorage.setItem(GUARDIAN_KEY, phone);
+            els.guardianStatus.textContent = '✅ Experto guardado';
+            hapticFeedback('success');
+            setTimeout(() => els.guardianStatus.textContent = '', 3000);
+        } else {
+            showToast('Introduce un número válido');
+        }
+    });
+
+    els.btnSos.addEventListener('click', () => {
+        const phone = localStorage.getItem(GUARDIAN_KEY);
+        if (!phone) return;
+
+        const brandInfo = els.resultBrand.style.display !== 'none' ? `\n🔍 Identidad: ${els.brandMsg.textContent}` : '';
+        const message = `🛡️ *CENTINELA SOS* 👼\n\nHe analizado este enlace y la app me da un aviso. ¿Me puedes decir si es seguro entrar?\n\n🔗 *Enlace:* ${currentUrl}${brandInfo}\n⚠️ *Veredicto:* ${els.resultTitle.textContent}\n\n¡Gracias experto!`;
+        
+        const whatsappUrl = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+        window.open(whatsappUrl, '_blank');
+        hapticFeedback('medium');
+    });
+
     // --- Error Dialog ---
     els.btnCloseError.addEventListener('click', closeError);
     els.btnErrorRetry.addEventListener('click', () => {
@@ -689,6 +742,9 @@ async function registerServiceWorker() {
    Init
    ============================================ */
 function init() {
+    // 0. Cargar Ángel de la Guarda
+    initGuardian();
+
     // 1. Registrar Service Worker
     registerServiceWorker();
 
