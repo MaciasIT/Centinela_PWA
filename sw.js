@@ -3,7 +3,7 @@
  * Caché offline y actualizaciones
  */
 
-const CACHE_NAME = 'centinela-v2.0.0';
+const CACHE_NAME = 'centinela-v2.1.0';
 const STATIC_ASSETS = [
     '/',
     '/index.html',
@@ -15,6 +15,8 @@ const STATIC_ASSETS = [
     '/js/tips.js',
     '/js/share.js',
     '/manifest.json',
+    '/assets/icon-192.png',
+    '/assets/icon-512.png',
 ];
 
 const EXTERNAL_ASSETS = [
