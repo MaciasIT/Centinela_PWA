@@ -168,7 +168,8 @@ function openPreview() {
 }
 
 function closePreview() {
-    els.previewDialog.classList.remove('hidden');
+    els.previewDialog.classList.add('hidden');
+    els.previewImg.src = '';
 }
 
 /* ============================================
