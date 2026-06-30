@@ -1,26 +1,50 @@
 /**
  * Centinela — Cloudflare Worker Backend
- * Proxy seguro para VirusTotal API v3
+ * Proxy seguro para VirusTotal API v3 con CORS restrictivo
  */
 
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type",
-};
+const ALLOWED_ORIGIN_REGEX = /^https:\/\/(centinela-pwa\.pages\.dev|.*\.pages\.dev)$|^http:\/\/localhost(:\d+)?$|^http:\/\/127\.0\.0\.1(:\d+)?$/;
+
+function getCorsHeaders(request) {
+  const origin = request.headers.get("Origin") || "";
+  const allowedOrigin = ALLOWED_ORIGIN_REGEX.test(origin) ? origin : "https://centinela-pwa.pages.dev";
+  return {
+    "Access-Control-Allow-Origin": allowedOrigin,
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type",
+  };
+}
+
+/**
+ * Codifica una cadena UTF-8 en Base64URL segura para VirusTotal v3 sin relleno (=)
+ * Evita fallos con caracteres especiales, emojis o dominios internacionales (IDN)
+ */
+function safeBase64UrlEncode(str) {
+  const utf8Bytes = new TextEncoder().encode(str);
+  let binary = "";
+  for (let i = 0; i < utf8Bytes.byteLength; i++) {
+    binary += String.fromCharCode(utf8Bytes[i]);
+  }
+  return btoa(binary)
+    .replace(/=/g, "")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_");
+}
 
 export default {
   async fetch(request, env, ctx) {
+    const corsHeaders = getCorsHeaders(request);
+
     // 1. Manejar el handshake CORS (peticiones OPTIONS de seguridad)
     if (request.method === "OPTIONS") {
-      return new Response(null, { headers: CORS_HEADERS });
+      return new Response(null, { headers: corsHeaders });
     }
 
     try {
       if (request.method !== "POST") {
         return new Response("Method not allowed", { 
           status: 405, 
-          headers: CORS_HEADERS 
+          headers: corsHeaders 
         });
       }
 
@@ -30,19 +54,29 @@ export default {
       if (!targetUrl) {
         return new Response("Missing URL", { 
           status: 400, 
-          headers: CORS_HEADERS 
+          headers: corsHeaders 
+        });
+      }
+
+      // Validar formato de URL básico
+      try {
+        new URL(targetUrl);
+      } catch (_) {
+        return new Response(JSON.stringify({ error: "La URL proporcionada no es válida" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
         });
       }
 
       if (!env.VIRUSTOTAL_API_KEY) {
         return new Response("API KEY not configured", { 
           status: 500, 
-          headers: CORS_HEADERS 
+          headers: corsHeaders 
         });
       }
 
-      // Convertir la URL a Base64URL sin el relleno (=) según pide VirusTotal v3
-      const encodedUrl = btoa(targetUrl).replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
+      // Codificación segura Base64URL para UTF-8 / Emojis / IDN
+      const encodedUrl = safeBase64UrlEncode(targetUrl);
 
       // 2. Intentar sacar el informe "en caché" (último análisis de VT)
       const vtGetUrl = `https://www.virustotal.com/api/v3/urls/${encodedUrl}`;
@@ -72,9 +106,9 @@ export default {
         });
 
         if (!scanResponse.ok) {
-            return new Response(JSON.stringify({ error: "No se pudo solicitar análisis nuevo" }), {
+            return new Response(JSON.stringify({ error: "No se pudo solicitar análisis nuevo en VirusTotal" }), {
               status: scanResponse.status,
-              headers: { ...CORS_HEADERS, "Content-Type": "application/json" }
+              headers: { ...corsHeaders, "Content-Type": "application/json" }
             });
         }
         
@@ -89,17 +123,17 @@ export default {
       if (!vtResponse.ok) {
         return new Response(await vtResponse.text(), { 
           status: vtResponse.status, 
-          headers: { ...CORS_HEADERS, "Content-Type": "application/json" } 
+          headers: { ...corsHeaders, "Content-Type": "application/json" } 
         });
       }
 
       const reportData = await vtResponse.json();
 
-      // Devolver lo que responda, a la PWA con CORS añadido
+      // Devolver resultados a la PWA con cabeceras CORS dinámicas y seguras
       return new Response(JSON.stringify(reportData), {
         status: 200,
         headers: {
-          ...CORS_HEADERS,
+          ...corsHeaders,
           "Content-Type": "application/json"
         }
       });
@@ -108,7 +142,7 @@ export default {
       return new Response(JSON.stringify({ error: err.message }), {
         status: 500,
         headers: {
-          ...CORS_HEADERS,
+          ...corsHeaders,
           "Content-Type": "application/json"
         }
       });

@@ -756,7 +756,12 @@ function initEventListeners() {
 async function registerServiceWorker() {
     if ('serviceWorker' in navigator) {
         try {
-            const registration = await navigator.serviceWorker.register('./sw.js');
+            // En desarrollo se usa /dev-sw.js?dev-sw como script de tipo módulo para que Vite lo compile al vuelo.
+            // En producción se usa el /sw.js clásico generado.
+            const swUrl = import.meta.env.DEV ? '/dev-sw.js?dev-sw' : './sw.js';
+            const swOptions = import.meta.env.DEV ? { type: 'module' } : {};
+            
+            const registration = await navigator.serviceWorker.register(swUrl, swOptions);
             registration.addEventListener('updatefound', () => {
                 const newWorker = registration.installing;
                 newWorker.addEventListener('statechange', () => {

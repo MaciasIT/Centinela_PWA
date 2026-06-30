@@ -1,3 +1,5 @@
+import { Html5Qrcode } from 'html5-qrcode';
+
 /**
  * Centinela — QR Scanner Module
  * Integración con html5-qrcode para escaneo de cámara e imagen
@@ -17,29 +19,12 @@ export async function startScanner(containerId, onSuccess, onError) {
     if (isRunning) return;
 
     try {
-        // Verificar que la librería está cargada
-        if (typeof Html5Qrcode === 'undefined') {
-            throw new Error('La librería del escáner no se ha cargado. Comprueba tu conexión a Internet.');
-        }
-
         scanner = new Html5Qrcode(containerId, { verbose: false });
 
         const cameras = await Html5Qrcode.getCameras();
 
         if (!cameras || cameras.length === 0) {
             throw new Error('No se ha encontrado ninguna cámara en el dispositivo.');
-        }
-
-        // Preferir cámara trasera
-        let cameraId = cameras[0].id;
-        const backCamera = cameras.find(c =>
-            c.label.toLowerCase().includes('back') ||
-            c.label.toLowerCase().includes('trasera') ||
-            c.label.toLowerCase().includes('rear') ||
-            c.label.toLowerCase().includes('environment')
-        );
-        if (backCamera) {
-            cameraId = backCamera.id;
         }
 
         const config = {
@@ -53,16 +38,33 @@ export async function startScanner(containerId, onSuccess, onError) {
             disableFlip: false,
         };
 
-        await scanner.start(
-            cameraId,
-            config,
-            (decodedText) => {
-                if (isRunning) {
-                    onSuccess(decodedText);
-                }
-            },
-            () => { /* errores de frames ignorados */ }
-        );
+        // Estrategia de inicio: intentar facingMode: "environment" primero (ideal para móviles, evita bug de iOS label)
+        // Si falla (ej. en laptops que no tienen cámara trasera), usar la primera cámara disponible.
+        try {
+            await scanner.start(
+                { facingMode: 'environment' },
+                config,
+                (decodedText) => {
+                    if (isRunning) {
+                        onSuccess(decodedText);
+                    }
+                },
+                () => { /* errores de frames ignorados */ }
+            );
+        } catch (startErr) {
+            console.warn('Fallo al iniciar con facingMode: environment. Usando fallback de id de getCameras...', startErr);
+            const cameraId = cameras[0].id;
+            await scanner.start(
+                cameraId,
+                config,
+                (decodedText) => {
+                    if (isRunning) {
+                        onSuccess(decodedText);
+                    }
+                },
+                () => { /* errores de frames ignorados */ }
+            );
+        }
 
         isRunning = true;
     } catch (err) {

@@ -1,74 +1,25 @@
-/**
- * Centinela — Service Worker
- * Caché offline y actualizaciones
- */
+import { precacheAndRoute, cleanupOutdatedCaches } from 'workbox-precaching';
+import { registerRoute } from 'workbox-routing';
+import { CacheFirst } from 'workbox-strategies';
+import { ExpirationPlugin } from 'workbox-expiration';
 
-const CACHE_NAME = 'centinela-v2.1.0';
-const STATIC_ASSETS = [
-    '/',
-    '/index.html',
-    '/css/styles.css',
-    '/js/app.js',
-    '/js/api.js',
-    '/js/scanner.js',
-    '/js/history.js',
-    '/js/tips.js',
-    '/js/share.js',
-    '/manifest.json',
-    '/assets/icon-192.png',
-    '/assets/icon-512.png',
-];
+// Precaché automático de archivos compilados por Vite
+precacheAndRoute(self.__WB_MANIFEST || []);
 
-const EXTERNAL_ASSETS = [
-    'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap',
-    'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js',
-];
+// Limpieza de cachés antiguas creadas por versiones anteriores de Workbox
+cleanupOutdatedCaches();
 
-// Instalación: cachear assets estáticos
-self.addEventListener('install', (event) => {
-    event.waitUntil(
-        caches.open(CACHE_NAME).then(async (cache) => {
-            // Cachear assets locales
-            await cache.addAll(STATIC_ASSETS);
-
-            // Intentar cachear assets externos (no bloquear si falla)
-            for (const url of EXTERNAL_ASSETS) {
-                try {
-                    await cache.add(url);
-                } catch (e) {
-                    console.warn('No se pudo cachear:', url, e);
-                }
-            }
-        })
-    );
-    self.skipWaiting();
-});
-
-// Activación: limpiar cachés antiguas
+// Forzar activación inmediata del nuevo Service Worker
+self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (event) => {
-    event.waitUntil(
-        caches.keys().then((cacheNames) => {
-            return Promise.all(
-                cacheNames
-                    .filter((name) => name !== CACHE_NAME)
-                    .map((name) => caches.delete(name))
-            );
-        })
-    );
-    self.clients.claim();
+    event.waitUntil(self.clients.claim());
 });
 
-// Fetch: Network first para API, Cache first para assets
+// Interceptar compartir objetivo (Web Share Target POST)
 self.addEventListener('fetch', (event) => {
     const { request } = event;
     const url = new URL(request.url);
 
-    // No interceptar peticiones a la API
-    if (url.hostname.includes('workers.dev') || url.hostname.includes('virustotal')) {
-        return;
-    }
-
-    // Manejar Web Share Target POST
     if (request.method === 'POST' && url.pathname === '/share-target') {
         event.respondWith(
             (async () => {
@@ -77,53 +28,24 @@ self.addEventListener('fetch', (event) => {
                 const text = formData.get('text') || '';
                 const sharedUrl = formData.get('url') || '';
                 
-                // Redirigir a la home con los datos en la URL para que el JS los procese
+                // Redirigir a la home con parámetros para procesamiento
                 const redirectUrl = `/?title=${encodeURIComponent(title)}&text=${encodeURIComponent(text)}&url=${encodeURIComponent(sharedUrl)}`;
                 return Response.redirect(redirectUrl, 303);
             })()
         );
-        return;
     }
-
-    // Para navegación (HTML), intentar red primero
-    if (request.mode === 'navigate') {
-        event.respondWith(
-            fetch(request)
-                .then((response) => {
-                    // Actualizar caché con la versión nueva
-                    const clone = response.clone();
-                    caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
-                    return response;
-                })
-                .catch(() => {
-                    return caches.match(request) || caches.match('/index.html');
-                })
-        );
-        return;
-    }
-
-    // Para assets estáticos: Cache first, fallback a red
-    event.respondWith(
-        caches.match(request).then((cached) => {
-            if (cached) {
-                // Actualizar en background (stale-while-revalidate)
-                fetch(request)
-                    .then((response) => {
-                        if (response.ok) {
-                            caches.open(CACHE_NAME).then((cache) => cache.put(request, response));
-                        }
-                    })
-                    .catch(() => {});
-                return cached;
-            }
-
-            return fetch(request).then((response) => {
-                if (response.ok && request.method === 'GET') {
-                    const clone = response.clone();
-                    caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
-                }
-                return response;
-            });
-        })
-    );
 });
+
+// Estrategia de caché para fuentes de Google (CSS y archivos woff2)
+registerRoute(
+    ({ url }) => url.origin === 'https://fonts.googleapis.com' || url.origin === 'https://fonts.gstatic.com',
+    new CacheFirst({
+        cacheName: 'google-fonts-cache',
+        plugins: [
+            new ExpirationPlugin({
+                maxEntries: 10,
+                maxAgeSeconds: 30 * 24 * 60 * 60, // 30 días
+            }),
+        ],
+    })
+);
