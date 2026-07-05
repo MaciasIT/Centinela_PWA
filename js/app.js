@@ -57,6 +57,7 @@ const els = {
     resultBrand: $('result-brand'),
     brandIcon: $('brand-icon'),
     brandMsg: $('brand-msg'),
+    brandDetail: $('brand-detail'),
     resultTrust: $('result-trust'),
     trustMsg: $('trust-msg'),
     trustIcon: $('trust-icon'),
