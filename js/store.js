@@ -74,7 +74,7 @@ export function assertRenderCount(elGetter, minCount = 1, timeoutMs = 5_000) {
 
 export function markRouteComplete(sessionId) {
   const key = 'centinela_routes';
-  const done = try(() => JSON.parse(localStorage.getItem(key) || '[]'), []);
+  const done = safeTry(() => JSON.parse(localStorage.getItem(key) || '[]'), []);
   done.push({ id: sessionId, doneAt: Date.now() });
   localStorage.setItem(key, JSON.stringify(done));
   return done.length;
@@ -82,10 +82,10 @@ export function markRouteComplete(sessionId) {
 
 export function hasRouteDuplicate(sessionId, windowMs = 5_000) {
   const key = 'centinela_routes';
-  const done = try(() => JSON.parse(localStorage.getItem(key) || '[]'), []);
+  const done = safeTry(() => JSON.parse(localStorage.getItem(key) || '[]'), []);
   return done.some((r) => r.id === sessionId && Date.now() - r.doneAt < windowMs);
 }
 
-function try(fn, fallback) {
+function safeTry(fn, fallback) {
   try { return fn(); } catch { return fallback; }
 }

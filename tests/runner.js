@@ -1,6 +1,19 @@
 import { readdirSync, realpathSync } from 'fs';
 import { pathToFileURL } from 'url';
 
+// Polyfill localStorage para Node.js (requerido por store.js)
+if (!globalThis.localStorage) {
+  const store = new Map();
+  globalThis.localStorage = {
+    getItem: (k) => store.get(k) ?? null,
+    setItem: (k, v) => { store.set(k, String(v)); },
+    removeItem: (k) => { store.delete(k); },
+    clear: () => { store.clear(); },
+    get length() { return store.size; },
+    key: (i) => [...store.keys()][i] ?? null,
+  };
+}
+
 const __filename = realpathSync(process.argv[1] || new URL(import.meta.url).pathname);
 const dir = __filename.replace(/\/[^/]+$/, '');
 
