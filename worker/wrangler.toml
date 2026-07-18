@@ -3,5 +3,8 @@ main = "src/index.js"
 compatibility_date = "2024-04-01"
 
 [vars]
-# Tu API key de VirusTotal irá aquí, la configuraremos como 'Secret' más tarde
-# VIRUSTOTAL_API_KEY = "tu_clave_aqui"
+# VirusTotal API key (obligatoria)
+# VIRUSTOTAL_API_KEY = "tu_clave_vt"
+
+# Google Safe Browsing API key (opcional — fallback #1)
+# GSB_API_KEY = "tu_clave_gsb"
