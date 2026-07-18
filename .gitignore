@@ -4,3 +4,6 @@ node_modules
 dist
 dist-temp
 *.log
+# Auditorías y planes internos (no públicos)
+AUDITORIA_*.md
+PLAN_MEJORAS_*.md
