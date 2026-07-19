@@ -141,28 +141,57 @@ function closeError() {
 /* ============================================
    Safe Preview Logic
    ============================================ */
+let previewTimeout = null;
+
 function openPreview() {
     if (!currentUrl) return;
 
-    // Preparar UI
+    // Cancelar cualquier carga anterior
+    if (previewTimeout) {
+        clearTimeout(previewTimeout);
+        previewTimeout = null;
+    }
     els.previewImg.src = '';
+
+    // Preparar UI
     els.previewImg.classList.add('hidden');
     els.previewLoading.classList.remove('hidden');
     els.previewDialog.classList.remove('hidden');
     els.previewLoading.innerHTML = '<div class="spinner"></div> Generando imagen segura...';
+    els.btnPreview.disabled = true;
 
     // Cargar imagen de WordPress mshots (Servicio gratuito y sin registro)
     // Nota: La primera vez que se pide una web puede tardar unos segundos en generarse
     const previewUrl = `https://s.wordpress.com/mshots/v1/${encodeURIComponent(currentUrl)}?w=1200`;
 
-    els.previewImg.onload = () => {
-        els.previewLoading.classList.add('hidden');
-        els.previewImg.classList.remove('hidden');
+    let loaded = false;
+
+    const finish = (success) => {
+        if (loaded) return;
+        loaded = true;
+        if (previewTimeout) {
+            clearTimeout(previewTimeout);
+            previewTimeout = null;
+        }
+        els.btnPreview.disabled = false;
+        if (success) {
+            els.previewLoading.classList.add('hidden');
+            els.previewImg.classList.remove('hidden');
+        } else {
+            els.previewLoading.innerHTML = '❌ No se pudo cargar la vista previa de este sitio.';
+        }
     };
 
-    els.previewImg.onerror = () => {
-        els.previewLoading.innerHTML = '❌ No se pudo cargar la vista previa de este sitio.';
-    };
+    els.previewImg.onload = () => finish(true);
+    els.previewImg.onerror = () => finish(false);
+
+    // Timeout de seguridad: 15 segundos
+    previewTimeout = setTimeout(() => {
+        if (!loaded) {
+            els.previewImg.src = ''; // Cancelar petición pendiente
+            finish(false);
+        }
+    }, 15000);
 
     els.previewImg.src = previewUrl;
     hapticFeedback('light');
@@ -171,6 +200,7 @@ function openPreview() {
 function closePreview() {
     els.previewDialog.classList.add('hidden');
     els.previewImg.src = '';
+    els.btnPreview.disabled = false;
 }
 
 /* ============================================
@@ -743,6 +773,9 @@ function initEventListeners() {
             }
             if (!els.errorDialog.classList.contains('hidden')) {
                 closeError();
+            }
+            if (!els.previewDialog.classList.contains('hidden')) {
+                closePreview();
             }
             if (screens.scanner.classList.contains('active')) {
                 closeScanner();
