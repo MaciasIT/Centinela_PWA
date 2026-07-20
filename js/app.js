@@ -13,6 +13,7 @@ import { recordScan, renderStatsScreen, getStats } from './stats.js';
 import { register, navigate, bindNav } from './router.js';
 import * as homeScreen from './screens/home.js';
 import * as resultScreen from './screens/result.js';
+import * as scannerScreen from './screens/scanner.js';
 
 /* ============================================
    DOM References
@@ -414,19 +415,12 @@ function updateCheckButton() {
    QR Scanner Flow
    ============================================ */
 async function openScanner() {
-    showScreen('scanner');
-
-    await startScanner(
-        'qr-reader',
-        (decodedText) => {
-            // QR detectado
+    navigate('scanner', {
+        onScan: (decodedText) => {
             hapticFeedback('success');
-            stopScanner();
-            showScreen('main');
+            navigate('main');
             els.urlInput.value = decodedText;
             updateCheckButton();
-
-            // Auto-analizar si parece una URL
             const validation = validateUrl(decodedText);
             if (validation.valid) {
                 setTimeout(() => analyzeCurrentUrl(), 300);
@@ -434,17 +428,15 @@ async function openScanner() {
                 showToast('QR leído. Comprueba si el contenido es un enlace web.');
             }
         },
-        (errorMsg) => {
-            // Error al iniciar escáner
-            showScreen('main');
+        onError: (errorMsg) => {
+            navigate('main');
             showError(errorMsg);
         }
-    );
+    });
 }
 
 async function closeScanner() {
-    await stopScanner();
-    showScreen('main');
+    navigate('main');
 }
 
 /* ============================================
@@ -625,23 +617,10 @@ function initEventListeners() {
             if (!els.previewDialog.classList.contains('hidden')) {
                 closePreview();
             }
-            if (screens.scanner.classList.contains('active')) {
-                closeScanner();
+            if (document.getElementById('screen-scanner').classList.contains('active')) {
+                navigate('main');
             }
         }
-    });
-
-    // --- Navegación inferior ---
-    document.querySelectorAll('.nav-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const screen = btn.dataset.screen;
-            if (screen === 'stats') {
-                renderStatsScreen($('stats-container'));
-            }
-            showScreen(screen);
-            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-        });
     });
 }
 
@@ -682,6 +661,7 @@ function init() {
       mount: (container) => renderStatsScreen($('stats-container')),
     });
     register('result', { mount: resultScreen.mount, unmount: resultScreen.unmount });
+    register('scanner', { mount: scannerScreen.mount, unmount: scannerScreen.unmount });
 
     // 0b. Navegación inferior vinculada al router
     bindNav('.nav-btn[data-screen="main"]', 'main');
