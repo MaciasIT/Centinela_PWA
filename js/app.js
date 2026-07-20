@@ -4,12 +4,11 @@
  */
 
 import { analyzeUrl, validateUrl } from './api.js';
-import { startScanner, stopScanner, scanFromImage } from './scanner.js';
-import { getHistory, addToHistory, clearHistory, formatDate, extractDomain } from './history.js';
+import { scanFromImage } from './scanner.js';
+import { addToHistory, extractDomain } from './history.js';
 import { getRandomTip } from './tips.js';
 import { shareResult, copyToClipboard, checkSharedUrl, hapticFeedback } from './share.js';
-import { checkBrandIdentity } from './brands.js';
-import { recordScan, renderStatsScreen, getStats } from './stats.js';
+import { recordScan, renderStatsScreen } from './stats.js';
 import { register, navigate, bindNav } from './router.js';
 import * as homeScreen from './screens/home.js';
 import * as resultScreen from './screens/result.js';
@@ -108,21 +107,10 @@ const GUARDIAN_KEY = 'centinela_guardian_phone';
    Screen Management
    ============================================ */
 function showScreen(name) {
-    Object.entries(screens).forEach(([key, el]) => {
-        if (key === name) {
-            el.classList.add('active');
-        } else {
-            el.classList.remove('active');
-        }
-    });
-    // Sincronizar nav
-    document.querySelectorAll('.nav-btn').forEach(b => {
-        b.classList.toggle('active', b.dataset.screen === name);
-    });
-    // Renderizar stats si entramos a esa pantalla
-    if (name === 'stats') {
-        renderStatsScreen($('stats-container'));
-    }
+    // Thin wrapper: para pantallas no registradas (loading) usa DOM directo
+    document.querySelectorAll('.screen').forEach(el => el.classList.remove('active'));
+    const el = document.getElementById(`screen-${name}`);
+    if (el) el.classList.add('active');
 }
 
 /* ============================================

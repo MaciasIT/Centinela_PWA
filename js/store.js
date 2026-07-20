@@ -20,10 +20,29 @@ export const store = {
     (this._listeners[key] || []).forEach((fn) => fn(value, this._state));
   },
   get(key) { return this._state[key]; },
+  /** Obtener snapshot completo del estado */
+  getState() { return { ...this._state }; },
   on(key, fn) {
     (this._listeners[key] ||= []).push(fn);
     return () => {
       this._listeners[key] = (this._listeners[key] || []).filter((f) => f !== fn);
+    };
+  },
+  /** Suscribirse a múltiples keys */
+  subscribe(keys, fn) {
+    const unsubs = keys.map(k => this.on(k, (val) => fn(k, val, this._state)));
+    return () => unsubs.forEach(u => u());
+  },
+  /** Resetear a estado inicial */
+  reset() {
+    this._state = {
+      screen: 'main',
+      result: null,
+      url: '',
+      status: 'idle',
+      loading: false,
+      diagnostics: [],
+      routeId: null,
     };
   },
 };
