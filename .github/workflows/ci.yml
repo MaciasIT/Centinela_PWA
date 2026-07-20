@@ -1,4 +1,4 @@
-name: CI/CD
+name: CI
 
 on:
   push:
@@ -38,26 +38,3 @@ jobs:
         with:
           name: dist
           path: dist/
-
-  deploy-worker:
-    needs: build
-    if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    env:
-      WRANGLER_LOG: debug
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Verificar token Cloudflare
-        run: |
-          if [ -z "${{ secrets.CLOUDFLARE_API_TOKEN }}" ]; then
-            echo "❌ CLOUDFLARE_API_TOKEN no está configurado en Secrets"
-            exit 1
-          fi
-          echo "✅ Token detectado"
-
-      - uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          workingDirectory: worker
-          command: deploy
