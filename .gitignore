@@ -9,4 +9,5 @@ AUDITORIA_*.md
 PLAN_MEJORAS_*.md
 
 # Environment secrets (credentials)
-.env*
+.env.r2
+.env.local
