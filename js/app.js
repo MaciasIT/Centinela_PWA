@@ -618,20 +618,32 @@ function initEventListeners() {
 async function registerServiceWorker() {
     if ('serviceWorker' in navigator) {
         try {
-            // En desarrollo se usa /dev-sw.js?dev-sw como script de tipo módulo para que Vite lo compile al vuelo.
-            // En producción se usa el /sw.js clásico generado.
             const swUrl = import.meta.env.DEV ? '/dev-sw.js?dev-sw' : './sw.js';
             const swOptions = import.meta.env.DEV ? { type: 'module' } : {};
             
             const registration = await navigator.serviceWorker.register(swUrl, swOptions);
+            
+            // Forzar actualización si hay un worker esperando
+            if (registration.waiting) {
+                registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+                window.location.reload();
+                return;
+            }
+
             registration.addEventListener('updatefound', () => {
                 const newWorker = registration.installing;
+                if (!newWorker) return;
                 newWorker.addEventListener('statechange', () => {
-                    if (newWorker.state === 'activated') {
-                        showToast('✨ Centinela se ha actualizado');
+                    if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                        // Nuevo SW listo — recargar para aplicarlo
+                        newWorker.postMessage({ type: 'SKIP_WAITING' });
+                        window.location.reload();
                     }
                 });
             });
+
+            // Verificar actualizaciones periódicamente
+            setInterval(() => registration.update(), 60 * 60 * 1000);
         } catch (err) {
             console.warn('Service Worker registration failed:', err);
         }
@@ -692,12 +704,12 @@ function init() {
     // 7. Rotar tip cada 30 segundos
     setInterval(loadTip, 30000);
 
-    console.log('🛡️ Centinela v2.0.0 — Tu guardián digital');
+    console.log('🛡️ Centinela v2.3.0 — Tu guardián digital');
     } catch (err) {
-        console.error('Error durante inicialización:', err);
+        console.error('Error durante inicialización:', err.message, err.stack);
         // Asegurar que los listeners críticos al menos funcionen
-        initEventListeners();
-        showToast('⚠️ Error al iniciar algunas funciones. La app puede tener problemas.');
+        try { initEventListeners(); } catch (_) {}
+        showToast('⚠️ Error al iniciar: ' + err.message.substring(0, 80));
     }
 }
 
