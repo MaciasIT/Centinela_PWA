@@ -7,3 +7,6 @@ dist-temp
 # Auditorías y planes internos (no públicos)
 AUDITORIA_*.md
 PLAN_MEJORAS_*.md
+
+# Environment secrets (credentials)
+.env*
