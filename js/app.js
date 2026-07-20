@@ -10,6 +10,8 @@ import { getRandomTip } from './tips.js';
 import { shareResult, copyToClipboard, checkSharedUrl, hapticFeedback } from './share.js';
 import { checkBrandIdentity } from './brands.js';
 import { recordScan, renderStatsScreen, getStats } from './stats.js';
+import { register, navigate, bindNav } from './router.js';
+import * as homeScreen from './screens/home.js';
 
 /* ============================================
    DOM References
@@ -170,11 +172,17 @@ function openPreview() {
     els.previewLoading.innerHTML = '<div class="spinner"></div> Generando imagen segura...';
     els.btnPreview.disabled = true;
 
-    // Cargar imagen de WordPress mshots (Servicio gratuito y sin registro)
-    // Nota: La primera vez que se pide una web puede tardar unos segundos en generarse
-    const previewUrl = `https://s.wordpress.com/mshots/v1/${encodeURIComponent(currentUrl)}?w=1200`;
+    // Codificar URL correctamente (mshots requiere URL limpia sin fragmento si falla)
+    const encodedUrl = encodeURIComponent(currentUrl);
+
+    // Fuente 1: WordPress mshots (rápido, gratuito)
+    const mshotsUrl = `https://s.wordpress.com/mshots/v1/${encodedUrl}?w=1200`;
+
+    // Fuente 2: thumbnail.ws (fallback)
+    const thumbWsUrl = `https://api.thumbnail.ws/api/${encodedUrl}?width=1200`;
 
     let loaded = false;
+    let triedFallback = false;
 
     const finish = (success) => {
         if (loaded) return;
@@ -188,12 +196,37 @@ function openPreview() {
             els.previewLoading.classList.add('hidden');
             els.previewImg.classList.remove('hidden');
         } else {
-            els.previewLoading.innerHTML = '❌ No se pudo cargar la vista previa de este sitio.';
+            els.previewLoading.innerHTML = `❌ No se pudo cargar la vista previa.<br><small style="color:var(--text-muted)">El sitio podría estar protegido o no ser accesible.</small>`;
         }
     };
 
-    els.previewImg.onload = () => finish(true);
-    els.previewImg.onerror = () => finish(false);
+    const tryLoad = (url, isFallback = false) => {
+        els.previewImg.onload = () => {
+            // Detectar imágenes placeholder (1x1, transparentes, o muy pequeñas)
+            if (els.previewImg.naturalWidth < 50 || els.previewImg.naturalHeight < 50) {
+                if (!triedFallback && !isFallback) {
+                    // Intentar con fallback
+                    triedFallback = true;
+                    els.previewLoading.innerHTML = '<div class="spinner"></div> Reintentando con fuente alternativa...';
+                    tryLoad(thumbWsUrl, true);
+                } else {
+                    finish(false);
+                }
+                return;
+            }
+            finish(true);
+        };
+        els.previewImg.onerror = () => {
+            if (!triedFallback && !isFallback) {
+                triedFallback = true;
+                els.previewLoading.innerHTML = '<div class="spinner"></div> Reintentando con fuente alternativa...';
+                tryLoad(thumbWsUrl, true);
+            } else {
+                finish(false);
+            }
+        };
+        els.previewImg.src = url;
+    };
 
     // Timeout de seguridad: 15 segundos
     previewTimeout = setTimeout(() => {
@@ -203,7 +236,7 @@ function openPreview() {
         }
     }, 15000);
 
-    els.previewImg.src = previewUrl;
+    tryLoad(mshotsUrl);
     hapticFeedback('light');
 }
 
@@ -416,7 +449,12 @@ function renderResult(result) {
 
     let status, icon, title, message;
 
-    if (positives === 0 && suspicious === 0) {
+    if (total === 0) {
+        status = 'warning';
+        icon = '⚠️';
+        title = 'Análisis no disponible';
+        message = 'Ningún motor de seguridad ha podido analizar este enlace todavía. Puede que sea demasiado nuevo o no esté indexado por VirusTotal.';
+    } else if (positives === 0 && suspicious === 0) {
         status = 'safe';
         icon = '✅';
         title = 'Este enlace es seguro';
@@ -838,7 +876,18 @@ async function registerServiceWorker() {
    Init
    ============================================ */
 function init() {
-    // 0. Cargar Ángel de la Guarda
+    try {
+    // 0. Registrar screens en el router
+    register('main', { mount: homeScreen.mount, unmount: homeScreen.unmount });
+    register('stats', {
+      mount: (container) => renderStatsScreen($('stats-container')),
+    });
+
+    // 0b. Navegación inferior vinculada al router
+    bindNav('.nav-btn[data-screen="main"]', 'main');
+    bindNav('.nav-btn[data-screen="stats"]', 'stats');
+
+    // 0c. Cargar Ángel de la Guarda
     initGuardian();
 
     // 1. Registrar Service Worker
@@ -876,6 +925,12 @@ function init() {
     setInterval(loadTip, 30000);
 
     console.log('🛡️ Centinela v2.0.0 — Tu guardián digital');
+    } catch (err) {
+        console.error('Error durante inicialización:', err);
+        // Asegurar que los listeners críticos al menos funcionen
+        initEventListeners();
+        showToast('⚠️ Error al iniciar algunas funciones. La app puede tener problemas.');
+    }
 }
 
 // Arrancar cuando el DOM esté listo
