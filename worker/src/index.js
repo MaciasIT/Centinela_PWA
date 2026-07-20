@@ -11,7 +11,7 @@ function getCorsHeaders(request) {
   const allowedOrigin = ALLOWED_ORIGIN_REGEX.test(origin) ? origin : "https://centinela-pwa.pages.dev";
   return {
     "Access-Control-Allow-Origin": allowedOrigin,
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
   };
 }
@@ -259,6 +259,22 @@ export default {
 
     if (request.method === "OPTIONS") {
       return new Response(null, { headers: corsHeaders });
+    }
+
+    // Healthcheck endpoint
+    if (request.method === "GET") {
+      const url = new URL(request.url);
+      if (url.pathname === "/health") {
+        return new Response(JSON.stringify({
+          status: "ok",
+          timestamp: new Date().toISOString(),
+          version: "2.2.0"
+        }), {
+          status: 200,
+          headers: { "Content-Type": "application/json", ...corsHeaders }
+        });
+      }
+      return new Response("Not found", { status: 404, headers: corsHeaders });
     }
 
     try {
