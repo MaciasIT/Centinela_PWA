@@ -12,6 +12,7 @@ import { checkBrandIdentity } from './brands.js';
 import { recordScan, renderStatsScreen, getStats } from './stats.js';
 import { register, navigate, bindNav } from './router.js';
 import * as homeScreen from './screens/home.js';
+import * as resultScreen from './screens/result.js';
 
 /* ============================================
    DOM References
@@ -256,43 +257,6 @@ function initGuardian() {
     }
 }
 
-function updateSosButton(status) {
-    const phone = localStorage.getItem(GUARDIAN_KEY);
-    // Mostrar si hay teléfono Y el resultado no es 'safe'
-    if (phone && status !== 'safe') {
-        els.btnSos.style.display = 'inline-flex';
-    } else {
-        els.btnSos.style.display = 'none';
-    }
-}
-
-/* ============================================
-   Trust Level Logic
-   ============================================ */
-function renderTrustLevel(result) {
-    if (!result.firstSubmissionDate) {
-        els.resultTrust.style.display = 'none';
-        return;
-    }
-
-    const firstSeen = new Date(result.firstSubmissionDate * 1000);
-    const sixMonthsAgo = new Date();
-    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-
-    els.resultTrust.style.display = 'flex';
-    els.resultTrust.className = 'result-trust'; // Reset
-
-    if (firstSeen > sixMonthsAgo) {
-        els.resultTrust.classList.add('new');
-        els.trustMsg.textContent = 'Sitio Muy Reciente';
-        els.trustIcon.textContent = '⏳';
-    } else {
-        els.resultTrust.classList.add('old');
-        els.trustMsg.textContent = 'Sitio Establecido';
-        els.trustIcon.textContent = '🕰️';
-    }
-}
-
 /* ============================================
    Onboarding
    ============================================ */
@@ -419,8 +383,7 @@ async function analyzeCurrentUrl() {
         currentResult = result;
         addToHistory(currentUrl, result);
         recordScan(currentUrl, result.positives === 0 ? 'safe' : result.positives > 3 ? 'dangerous' : 'suspicious');
-        renderResult(result);
-        showScreen('result');
+        navigate('result', { result, url: currentUrl });
 
         // Feedback háptico según resultado
         if (result.positives === 0) {
@@ -436,170 +399,6 @@ async function analyzeCurrentUrl() {
             err.message || 'No se pudo comprobar el enlace. Inténtalo de nuevo.',
             () => analyzeCurrentUrl()
         );
-    }
-}
-
-/* ============================================
-   Result Rendering
-   ============================================ */
-function renderResult(result) {
-    const positives = result.positives || 0;
-    const total = result.total || 0;
-    const suspicious = result.suspicious || 0;
-
-    let status, icon, title, message;
-
-    if (total === 0) {
-        status = 'warning';
-        icon = '⚠️';
-        title = 'Análisis no disponible';
-        message = 'Ningún motor de seguridad ha podido analizar este enlace todavía. Puede que sea demasiado nuevo o no esté indexado por VirusTotal.';
-    } else if (positives === 0 && suspicious === 0) {
-        status = 'safe';
-        icon = '✅';
-        title = 'Este enlace es seguro';
-        message = `${total} motores de seguridad lo han analizado y ninguno ha encontrado problemas. Puedes abrirlo con tranquilidad.`;
-    } else if (positives > 3) {
-        status = 'danger';
-        icon = '🚨';
-        title = '¡No abras este enlace!';
-        message = `${positives} de ${total} motores de seguridad lo han marcado como peligroso. Podría ser una estafa, phishing o contener malware.`;
-    } else {
-        status = 'warning';
-        icon = '⚠️';
-        title = 'Ten cuidado con este enlace';
-        message = `${positives + suspicious} de ${total} motores han encontrado algo sospechoso. Te recomendamos no introducir datos personales en esta web.`;
-    }
-
-    // Semáforo
-    els.resultIcon.className = `result-traffic-light ${status}`;
-    els.resultIcon.innerHTML = `<span>${icon}</span>`;
-
-    // Textos
-    els.resultTitle.textContent = title;
-    els.resultTitle.className = `result-title ${status}`;
-    els.resultMessage.textContent = message;
-
-    // URL
-    els.resultUrl.textContent = currentUrl;
-    
-    // Identificación de Marca (Phishing Finder)
-    const domain = extractDomain(currentUrl);
-    const finalDomain = result.finalUrl ? extractDomain(result.finalUrl) : null;
-    
-    // Comprobar tanto la URL original como la final (por si es un acortador que lleva a un phishing)
-    const brandInfo = checkBrandIdentity(domain) || (finalDomain ? checkBrandIdentity(finalDomain) : null);
-    
-    if (brandInfo) {
-        els.resultBrand.style.display = 'flex';
-        els.resultBrand.className = 'result-brand ' + (brandInfo.isOfficial ? 'official' : 'suspicious');
-        els.brandIcon.textContent = brandInfo.isOfficial ? '✅' : '⚠️';
-        els.brandMsg.textContent = brandInfo.isOfficial ? 'Identidad Oficial: ' + brandInfo.brandName : '¡Posible Suplantación!';
-        els.brandDetail.textContent = brandInfo.isOfficial 
-            ? `Este es un dominio oficial confirmado de ${brandInfo.brandName}.` 
-            : `Esta web utiliza el nombre de ${brandInfo.brandName} pero NO parece ser su sitio oficial. Ten mucho cuidado si te piden datos.`;
-    } else {
-        els.resultBrand.style.display = 'none';
-    }
-
-    // X-Ray / Redirección (Efecto Rayos X)
-    if (result.finalUrl && result.finalUrl !== currentUrl && !result.finalUrl.endsWith(currentUrl) && !currentUrl.endsWith(result.finalUrl)) {
-        els.resultFinalUrl.textContent = result.finalUrl;
-        els.resultPageTitle.textContent = result.title || '';
-        els.resultXray.style.display = 'block';
-    } else {
-        els.resultXray.style.display = 'none';
-    }
-
-    // Botón abrir (solo si es seguro)
-    els.btnOpenUrl.style.display = status === 'danger' ? 'none' : 'inline-flex';
-
-    // Trust Level (Antigüedad)
-    renderTrustLevel(result);
-
-    // Modo Ángel de la Guarda (SOS)
-    updateSosButton(status);
-
-    // Detalles técnicos
-    renderTechnicalDetails(result, status);
-}
-
-function renderTechnicalDetails(result, status) {
-    const positives = result.positives || 0;
-    const total = result.total || 0;
-    const harmless = result.harmless || 0;
-    const undetected = result.undetected || 0;
-    const suspicious = result.suspicious || 0;
-
-    let detailsHtml = `
-        <div class="detail-grid">
-            <div class="detail-row">
-                <span class="detail-label">Motores que lo analizaron</span>
-                <span class="detail-value">${total}</span>
-            </div>
-            <div class="detail-row">
-                <span class="detail-label">Detectado como peligroso</span>
-                <span class="detail-value ${positives > 0 ? 'danger' : 'safe'}">${positives}</span>
-            </div>
-            <div class="detail-row">
-                <span class="detail-label">Marcado como sospechoso</span>
-                <span class="detail-value ${suspicious > 0 ? 'warning' : ''}">${suspicious}</span>
-            </div>
-            <div class="detail-row">
-                <span class="detail-label">Sin problemas detectados</span>
-                <span class="detail-value safe">${harmless}</span>
-            </div>
-            <div class="detail-row">
-                <span class="detail-label">Sin analizar</span>
-                <span class="detail-value">${undetected}</span>
-            </div>
-    `;
-
-    if (result.scanDate) {
-        const scanDate = new Date(result.scanDate * 1000 || result.scanDate);
-        detailsHtml += `
-            <div class="detail-row">
-                <span class="detail-label">Último análisis</span>
-                <span class="detail-value">${scanDate.toLocaleDateString('es-ES', {
-                    day: 'numeric', month: 'short', year: 'numeric'
-                })}</span>
-            </div>
-        `;
-    }
-
-    if (result.fromCache) {
-        detailsHtml += `
-            <div class="detail-row">
-                <span class="detail-label">Fuente</span>
-                <span class="detail-value" style="color:var(--color-info)">Caché local</span>
-            </div>
-        `;
-    }
-
-    detailsHtml += `</div>`;
-
-    // Engines que detectaron amenaza
-    const engines = result.engines;
-    if (engines && Object.keys(engines).length > 0) {
-        detailsHtml += `
-            <div class="detail-engines">
-                <div class="detail-engines-title">Motores que alertaron:</div>
-                <div class="engine-list">
-                    ${Object.entries(engines).map(([name, info]) => `
-                        <span class="engine-tag malicious">${name}</span>
-                    `).join('')}
-                </div>
-            </div>
-        `;
-    }
-
-    els.resultDetailsContent.innerHTML = detailsHtml;
-
-    // Si es peligroso, abrir detalles automáticamente
-    if (status === 'danger') {
-        els.resultDetails.setAttribute('open', '');
-    } else {
-        els.resultDetails.removeAttribute('open');
     }
 }
 
@@ -882,6 +681,7 @@ function init() {
     register('stats', {
       mount: (container) => renderStatsScreen($('stats-container')),
     });
+    register('result', { mount: resultScreen.mount, unmount: resultScreen.unmount });
 
     // 0b. Navegación inferior vinculada al router
     bindNav('.nav-btn[data-screen="main"]', 'main');
