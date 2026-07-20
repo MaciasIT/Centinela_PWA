@@ -5,7 +5,7 @@
 
 import { analyzeUrl, validateUrl } from './api.js';
 import { scanFromImage } from './scanner.js';
-import { addToHistory, extractDomain } from './history.js';
+import { addToHistory, getHistory, clearHistory, formatDate, extractDomain } from './history.js';
 import { getRandomTip } from './tips.js';
 import { shareResult, copyToClipboard, checkSharedUrl, hapticFeedback } from './share.js';
 import { recordScan, renderStatsScreen } from './stats.js';
