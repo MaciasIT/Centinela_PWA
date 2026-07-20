@@ -9,6 +9,7 @@ import { getHistory, addToHistory, clearHistory, formatDate, extractDomain } fro
 import { getRandomTip } from './tips.js';
 import { shareResult, copyToClipboard, checkSharedUrl, hapticFeedback } from './share.js';
 import { checkBrandIdentity } from './brands.js';
+import { recordScan, renderStatsScreen, getStats } from './stats.js';
 
 /* ============================================
    DOM References
@@ -20,6 +21,7 @@ const screens = {
     scanner: $('screen-scanner'),
     loading: $('screen-loading'),
     result: $('screen-result'),
+    stats: $('screen-stats'),
 };
 
 const els = {
@@ -109,6 +111,14 @@ function showScreen(name) {
             el.classList.remove('active');
         }
     });
+    // Sincronizar nav
+    document.querySelectorAll('.nav-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.screen === name);
+    });
+    // Renderizar stats si entramos a esa pantalla
+    if (name === 'stats') {
+        renderStatsScreen($('stats-container'));
+    }
 }
 
 /* ============================================
@@ -375,6 +385,7 @@ async function analyzeCurrentUrl() {
         const result = await analyzeUrl(currentUrl);
         currentResult = result;
         addToHistory(currentUrl, result);
+        recordScan(currentUrl, result.positives === 0 ? 'safe' : result.positives > 3 ? 'dangerous' : 'suspicious');
         renderResult(result);
         showScreen('result');
 
@@ -781,6 +792,19 @@ function initEventListeners() {
                 closeScanner();
             }
         }
+    });
+
+    // --- Navegación inferior ---
+    document.querySelectorAll('.nav-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const screen = btn.dataset.screen;
+            if (screen === 'stats') {
+                renderStatsScreen($('stats-container'));
+            }
+            showScreen(screen);
+            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+        });
     });
 }
 
