@@ -78,8 +78,6 @@ export async function analyzeUrl(url) {
     } catch (err) {
         clearTimeout(timeout);
 
-        console.error("Detalle técnico del error:", err);
-
         if (err.name === 'AbortError') {
             throw new Error('La comprobación tardó demasiado. Inténtalo de nuevo.');
         }
@@ -187,7 +185,7 @@ function isQueuedOrEmpty(data) {
 
 // ── Utilidades ────────────────────────────────────────────────────
 
-function normalizeUrl(url) {
+export function normalizeUrl(url) {
     let trimmed = url.trim();
     if (!trimmed.match(/^https?:\/\//i)) {
         trimmed = `https://${trimmed}`;

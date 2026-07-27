@@ -645,7 +645,6 @@ async function registerServiceWorker() {
             // Verificar actualizaciones periódicamente
             setInterval(() => registration.update(), 60 * 60 * 1000);
         } catch (err) {
-            console.warn('Service Worker registration failed:', err);
         }
     }
 }
@@ -703,8 +702,6 @@ function init() {
 
     // 7. Rotar tip cada 30 segundos
     setInterval(loadTip, 30000);
-
-    console.log('🛡️ Centinela v2.3.0 — Tu guardián digital');
     } catch (err) {
         console.error('Error durante inicialización:', err.message, err.stack);
         // Asegurar que los listeners críticos al menos funcionen

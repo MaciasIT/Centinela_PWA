@@ -14,8 +14,7 @@ export function getHistory() {
     try {
         const data = localStorage.getItem(STORAGE_KEY);
         return data ? JSON.parse(data) : [];
-    } catch (e) {
-        console.warn('Error leyendo historial:', e);
+    } catch {
         return [];
     }
 }
@@ -52,8 +51,7 @@ export function addToHistory(url, result) {
         }
 
         return entry;
-    } catch (e) {
-        console.warn('Error guardando historial:', e);
+    } catch {
         return null;
     }
 }
@@ -64,8 +62,8 @@ export function addToHistory(url, result) {
 export function clearHistory() {
     try {
         localStorage.removeItem(STORAGE_KEY);
-    } catch (e) {
-        console.warn('Error borrando historial:', e);
+    } catch {
+        localStorage.removeItem(STORAGE_KEY);
     }
 }
 

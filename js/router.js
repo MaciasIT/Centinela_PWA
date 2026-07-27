@@ -36,7 +36,6 @@ export function navigate(name, data) {
   // Mostrar destino
   const container = document.getElementById(`screen-${name}`);
   if (!container) {
-    console.warn(`Screen "${name}" not found in DOM`);
     return;
   }
 

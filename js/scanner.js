@@ -52,7 +52,6 @@ export async function startScanner(containerId, onSuccess, onError) {
                 () => { /* errores de frames ignorados */ }
             );
         } catch (startErr) {
-            console.warn('Fallo al iniciar con facingMode: environment. Usando fallback de id de getCameras...', startErr);
             const cameraId = cameras[0].id;
             await scanner.start(
                 cameraId,
@@ -68,7 +67,6 @@ export async function startScanner(containerId, onSuccess, onError) {
 
         isRunning = true;
     } catch (err) {
-        console.error('Error iniciando escáner:', err);
 
         let friendlyMessage;
         const msg = err.message || '';
@@ -96,7 +94,6 @@ export async function stopScanner() {
             await scanner.stop();
             scanner.clear();
         } catch (e) {
-            console.warn('Error deteniendo escáner:', e);
         }
         isRunning = false;
         scanner = null;
