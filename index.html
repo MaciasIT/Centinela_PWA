@@ -398,11 +398,11 @@
         <!-- ============================
              DIALOG PREVIEW
              ============================ -->
-        <div id="preview-dialog" class="overlay hidden" role="dialog" aria-labelledby="preview-title">
+        <div id="preview-dialog" class="overlay hidden" role="dialog" aria-labelledby="preview-title" onclick="if(event.target===this){this.classList.add('hidden');document.getElementById('preview-img').src='';document.getElementById('btn-preview').disabled=false;}">
             <div class="dialog dialog-preview">
                 <div class="dialog-header">
                     <h2 id="preview-title" class="dialog-title">📸 Vista Previa Segura</h2>
-                    <button id="btn-close-preview" class="btn-icon" aria-label="Cerrar">
+                    <button id="btn-close-preview" class="btn-icon" aria-label="Cerrar" onclick="document.getElementById('preview-dialog').classList.add('hidden');document.getElementById('preview-img').src='';document.getElementById('btn-preview').disabled=false;">
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <line x1="18" y1="6" x2="6" y2="18"></line>
                             <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -415,7 +415,7 @@
                             <div class="spinner"></div>
                             Generando imagen segura...
                         </div>
-                        <img id="preview-img" src="" alt="Vista previa de la web" class="preview-img hidden">
+                        <img id="preview-img" src="" alt="Vista previa de la web" class="preview-img hidden" crossorigin="anonymous" referrerpolicy="no-referrer">
                     </div>
                     <p class="preview-warning">
                         <strong>🛡️ Entorno Aislado:</strong> Lo que ves es una fotografía. No hay riesgo de virus, robo de datos ni interacciones maliciosas.
