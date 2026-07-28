@@ -287,7 +287,7 @@ async function analyzeCurrentUrl() {
 
     currentUrl = validation.url;
     hapticFeedback('medium');
-    showScreen('loading');
+    navigate('loading');
 
     try {
         const result = await analyzeUrl(currentUrl);
@@ -299,7 +299,7 @@ async function analyzeCurrentUrl() {
         else if (result.positives > 3) hapticFeedback('danger');
         else hapticFeedback('warning');
     } catch (err) {
-        showScreen('main');
+        navigate('main');
         showError(err.message || 'No se pudo comprobar el enlace. Inténtalo de nuevo.', () => analyzeCurrentUrl());
     }
 }
@@ -388,7 +388,7 @@ function initEventListeners() {
     });
     els.btnNewCheck.addEventListener('click', () => {
         currentUrl = ''; currentResult = null; els.urlInput.value = ''; updateCheckButton();
-        showScreen('main'); loadTip(); renderHistory();
+        navigate('main'); loadTip(); renderHistory();
     });
     els.btnPreview.addEventListener('click', openPreview);
 
