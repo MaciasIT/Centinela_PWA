@@ -1,7 +1,7 @@
 import { readdirSync, realpathSync } from 'fs';
 import { pathToFileURL } from 'url';
 
-// Polyfill localStorage para Node.js (requerido por store.js)
+// Polyfill localStorage para Node.js (reutilizado por tests)
 if (!globalThis.localStorage) {
   const store = new Map();
   globalThis.localStorage = {
