@@ -427,13 +427,25 @@ function initEventListeners() {
     els.btnErrorRetry.addEventListener('click', () => { closeError(); if (lastRetryAction) lastRetryAction(); });
     els.errorDialog.addEventListener('click', (e) => { if (e.target === els.errorDialog) closeError(); });
 
-    // --- Keyboard: Escape closes dialogs ---
+    // --- Keyboard: Escape cierra diálogos/scanner o no hace nada ---
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
-            if (!els.infoDialog.classList.contains('hidden')) els.infoDialog.classList.add('hidden');
-            if (!els.errorDialog.classList.contains('hidden')) closeError();
-            if (!els.previewDialog.classList.contains('hidden')) closePreview();
-            if (document.getElementById('screen-scanner')?.classList.contains('active')) navigate('main');
+            if (!els.infoDialog.classList.contains('hidden')) {
+                els.infoDialog.classList.add('hidden');
+                return;
+            }
+            if (!els.errorDialog.classList.contains('hidden')) {
+                closeError();
+                return;
+            }
+            if (!els.previewDialog.classList.contains('hidden')) {
+                closePreview();
+                return;
+            }
+            if (document.getElementById('screen-scanner')?.classList.contains('active')) {
+                navigate('main');
+                return;
+            }
         }
     });
 }

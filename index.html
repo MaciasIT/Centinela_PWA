@@ -212,7 +212,7 @@
              PANTALLA RESULTADO
              ============================ -->
         <div id="screen-result" class="screen">
-            <div class="result-container">
+            <div class="result-container" aria-live="polite">
                 <!-- Semáforo -->
                 <div id="result-icon" class="result-traffic-light">
                     <!-- JS inyecta icono dinámico -->
@@ -389,7 +389,7 @@
                     </button>
                 </div>
                 <div class="dialog-body">
-                    <p id="error-message">Ha ocurrido un error inesperado.</p>
+                    <p id="error-message" aria-live="polite">Ha ocurrido un error inesperado.</p>
                     <button id="btn-error-retry" class="btn btn-primary" style="margin-top:var(--space-lg)">Reintentar</button>
                 </div>
             </div>
