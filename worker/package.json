@@ -2,6 +2,7 @@
   "name": "centinela-api",
   "version": "2.2.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "deploy": "wrangler deploy"
   },
