@@ -5,14 +5,17 @@
 
 import { analyzeUrl, validateUrl } from './api.js';
 import { scanFromImage } from './scanner.js';
-import { addToHistory, getHistory, clearHistory, formatDate, extractDomain } from './history.js';
+import { clearHistory } from './history.js';
 import { getRandomTip } from './tips.js';
-import { shareResult, copyToClipboard, checkSharedUrl, hapticFeedback } from './share.js';
-import { recordScan, renderStatsScreen } from './stats.js';
+import { shareResult, checkSharedUrl, hapticFeedback } from './share.js';
+import { recordScan } from './stats.js';
 import { register, navigate, bindNav } from './router.js';
 import * as homeScreen from './screens/home.js';
 import * as resultScreen from './screens/result.js';
 import * as scannerScreen from './screens/scanner.js';
+import * as previewScreen from './screens/preview.js';
+import * as dialogScreen from './screens/dialog.js';
+import * as guardianScreen from './screens/guardian.js';
 
 /* ============================================
    DOM Helpers
@@ -20,10 +23,6 @@ import * as scannerScreen from './screens/scanner.js';
 const $ = (id) => document.getElementById(id);
 
 const els = {
-    // Onboarding
-    onboarding: $('onboarding'),
-    onboardingNext: $('onboarding-next'),
-    onboardingSkip: $('onboarding-skip'),
     // Main screen
     urlInput: $('url-input'),
     btnPaste: $('btn-paste'),
@@ -31,51 +30,14 @@ const els = {
     btnScanQr: $('btn-scan-qr'),
     btnUploadImage: $('btn-upload-image'),
     fileInput: $('file-input'),
-    tipText: $('tip-text'),
-    historyList: $('history-list'),
-    historyEmpty: $('history-empty'),
-    historySection: $('history-section'),
     btnClearHistory: $('btn-clear-history'),
-    // Scanner screen
+    // Scanner
     btnCloseScanner: $('btn-close-scanner'),
-    // Result screen
-    resultIcon: $('result-icon'),
-    resultTitle: $('result-title'),
-    resultMessage: $('result-message'),
-    resultUrl: $('result-url'),
-    resultUrlCard: $('result-url-card'),
-    resultXray: $('result-xray'),
-    resultFinalUrl: $('result-final-url'),
-    resultPageTitle: $('result-page-title'),
-    resultDetails: $('result-details'),
-    resultBrand: $('result-brand'),
-    brandIcon: $('brand-icon'),
-    brandMsg: $('brand-msg'),
-    brandDetail: $('brand-detail'),
-    resultTrust: $('result-trust'),
-    trustMsg: $('trust-msg'),
-    trustIcon: $('trust-icon'),
-    resultDetailsContent: $('result-details-content'),
+    // Result
     btnOpenUrl: $('btn-open-url'),
     btnShare: $('btn-share'),
     btnNewCheck: $('btn-new-check'),
     btnPreview: $('btn-preview'),
-    btnSos: $('btn-sos'),
-    // Dialogs
-    btnInfo: $('btn-info'),
-    infoDialog: $('info-dialog'),
-    btnCloseInfo: $('btn-close-info'),
-    guardianPhone: $('guardian-phone'),
-    btnSaveGuardian: $('btn-save-guardian'),
-    guardianStatus: $('guardian-status'),
-    previewDialog: $('preview-dialog'),
-    previewImg: $('preview-img'),
-    previewLoading: $('preview-loading'),
-    btnClosePreview: $('btn-close-preview'),
-    errorDialog: $('error-dialog'),
-    errorMessage: $('error-message'),
-    btnCloseError: $('btn-close-error'),
-    btnErrorRetry: $('btn-error-retry'),
     // Toast
     toast: $('toast'),
     toastMessage: $('toast-message'),
@@ -88,16 +50,6 @@ let currentUrl = '';
 let currentResult = null;
 let toastTimeout = null;
 let lastRetryAction = null;
-const GUARDIAN_KEY = 'centinela_guardian_phone';
-
-/* ============================================
-   Screen Management
-   ============================================ */
-function showScreen(name) {
-    document.querySelectorAll('.screen').forEach(el => el.classList.remove('active'));
-    const el = document.getElementById(`screen-${name}`);
-    if (el) el.classList.add('active');
-}
 
 /* ============================================
    Toast
@@ -113,166 +65,22 @@ function showToast(message, duration = 3000) {
    Error Dialog
    ============================================ */
 function showError(message, retryAction = null) {
-    els.errorMessage.textContent = message;
-    els.errorDialog.classList.remove('hidden');
+    dialogScreen.showError(message, retryAction, {
+        errorDialog: $('error-dialog'),
+        errorMessage: $('error-message'),
+        btnErrorRetry: $('btn-error-retry'),
+        lastRetryAction,
+    });
     lastRetryAction = retryAction;
-    els.btnErrorRetry.style.display = retryAction ? 'inline-flex' : 'none';
 }
 
 function closeError() {
-    els.errorDialog.classList.add('hidden');
-}
-
-/* ============================================
-   Safe Preview Logic
-   ============================================ */
-let previewTimeout = null;
-
-function openPreview() {
-    if (!currentUrl) return;
-    if (previewTimeout) { clearTimeout(previewTimeout); previewTimeout = null; }
-    els.previewImg.src = '';
-    els.previewImg.classList.add('hidden');
-    els.previewLoading.classList.remove('hidden');
-    els.previewDialog.classList.remove('hidden');
-    els.previewLoading.innerHTML = '<div class="spinner"></div> Generando imagen segura...';
-    els.btnPreview.disabled = true;
-
-    const encodedUrl = encodeURIComponent(currentUrl);
-    const mshotsUrl = `https://s.wordpress.com/mshots/v1/${encodedUrl}?w=1200`;
-    const thumbWsUrl = `https://api.thumbnail.ws/api/${encodedUrl}?width=1200`;
-    let loaded = false;
-    let triedFallback = false;
-
-    const finish = (success) => {
-        if (loaded) return;
-        loaded = true;
-        if (previewTimeout) { clearTimeout(previewTimeout); previewTimeout = null; }
-        els.btnPreview.disabled = false;
-        if (success) {
-            els.previewLoading.classList.add('hidden');
-            els.previewImg.classList.remove('hidden');
-        } else {
-            els.previewLoading.innerHTML = `❌ No se pudo cargar la vista previa.<br><small style="color:var(--text-muted)">El sitio podría estar protegido o no ser accesible.</small>`;
-        }
-    };
-
-    const tryLoad = (url, isFallback = false) => {
-        els.previewImg.onload = () => {
-            if (els.previewImg.naturalWidth < 50 || els.previewImg.naturalHeight < 50) {
-                if (!triedFallback && !isFallback) {
-                    triedFallback = true;
-                    els.previewLoading.innerHTML = '<div class="spinner"></div> Reintentando con fuente alternativa...';
-                    tryLoad(thumbWsUrl, true);
-                } else { finish(false); }
-                return;
-            }
-            finish(true);
-        };
-        els.previewImg.onerror = () => {
-            if (!triedFallback && !isFallback) {
-                triedFallback = true;
-                els.previewLoading.innerHTML = '<div class="spinner"></div> Reintentando con fuente alternativa...';
-                tryLoad(thumbWsUrl, true);
-            } else { finish(false); }
-        };
-        els.previewImg.src = url;
-    };
-
-    previewTimeout = setTimeout(() => {
-        if (!loaded) { els.previewImg.src = ''; finish(false); }
-    }, 15000);
-    tryLoad(mshotsUrl);
-    hapticFeedback('light');
-}
-
-function closePreview() {
-    els.previewDialog.classList.add('hidden');
-    els.previewImg.src = '';
-    els.btnPreview.disabled = false;
-}
-
-/* ============================================
-   Guardian Angel
-   ============================================ */
-function initGuardian() {
-    const saved = localStorage.getItem(GUARDIAN_KEY);
-    if (saved) els.guardianPhone.value = saved;
-}
-
-/* ============================================
-   Onboarding
-   ============================================ */
-let currentSlide = 0;
-const ONBOARDING_KEY = 'centinela_onboarded';
-
-function initOnboarding() {
-    try {
-        if (localStorage.getItem(ONBOARDING_KEY)) return;
-    } catch { return; }
-    els.onboarding.classList.remove('hidden');
-    els.onboardingNext.addEventListener('click', () => {
-        currentSlide++;
-        if (currentSlide >= 3) { completeOnboarding(); }
-        else { updateSlide(); if (currentSlide === 2) els.onboardingNext.textContent = '¡Empezar!'; }
+    dialogScreen.closeErrorDialog({
+        errorDialog: $('error-dialog'),
+        lastRetryAction,
+        btnErrorRetry: $('btn-error-retry'),
     });
-    els.onboardingSkip.addEventListener('click', completeOnboarding);
-}
-
-function updateSlide() {
-    document.querySelectorAll('.onboarding-slide').forEach((slide, i) => slide.classList.toggle('active', i === currentSlide));
-    document.querySelectorAll('.onboarding-dots .dot').forEach((dot, i) => dot.classList.toggle('active', i === currentSlide));
-}
-
-function completeOnboarding() {
-    els.onboarding.classList.add('hidden');
-    try { localStorage.setItem(ONBOARDING_KEY, 'true'); } catch {}
-}
-
-/* ============================================
-   Tips
-   ============================================ */
-function loadTip() { els.tipText.textContent = getRandomTip(); }
-
-/* ============================================
-   History Rendering
-   ============================================ */
-function renderHistory() {
-    const history = getHistory();
-    if (history.length === 0) {
-        els.historyList.innerHTML = '';
-        els.historyEmpty.classList.remove('hidden');
-        els.historySection.style.display = 'block';
-        return;
-    }
-    els.historyEmpty.classList.add('hidden');
-    const recent = history.slice(0, 5);
-    els.historyList.innerHTML = recent.map(item => {
-        const statusEmoji = item.status === 'safe' ? '✅' : item.status === 'danger' ? '🚨' : '⚠️';
-        const domain = extractDomain(item.url);
-        const date = formatDate(item.date);
-        return `
-            <div class="history-item" data-url="${encodeURIComponent(item.url)}" role="button" tabindex="0">
-                <span class="history-status">${statusEmoji}</span>
-                <div class="history-info">
-                    <div class="history-url">${domain}</div>
-                    <div class="history-date">${date}</div>
-                </div>
-            </div>`;
-    }).join('');
-
-    els.historyList.querySelectorAll('.history-item').forEach(item => {
-        const handler = () => {
-            const url = decodeURIComponent(item.dataset.url);
-            els.urlInput.value = url;
-            updateCheckButton();
-            hapticFeedback('light');
-        };
-        item.addEventListener('click', handler);
-        item.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handler(); }
-        });
-    });
+    lastRetryAction = null;
 }
 
 /* ============================================
@@ -308,7 +116,7 @@ async function analyzeCurrentUrl() {
    Input Handling
    ============================================ */
 function updateCheckButton() {
-    els.btnCheck.disabled = els.urlInput.value.trim().length === 0;
+    homeScreen.updateCheckButton();
 }
 
 /* ============================================
@@ -373,7 +181,7 @@ function initEventListeners() {
         if (file) handleImageUpload(file);
         els.fileInput.value = '';
     });
-    els.btnClearHistory.addEventListener('click', () => { clearHistory(); renderHistory(); hapticFeedback('light'); showToast('Historial borrado'); });
+    els.btnClearHistory.addEventListener('click', () => { clearHistory(); homeScreen.renderHistory(); hapticFeedback('light'); showToast('Historial borrado'); });
 
     // --- Scanner Screen ---
     els.btnCloseScanner.addEventListener('click', closeScanner);
@@ -388,64 +196,54 @@ function initEventListeners() {
     });
     els.btnNewCheck.addEventListener('click', () => {
         currentUrl = ''; currentResult = null; els.urlInput.value = ''; updateCheckButton();
-        navigate('main'); loadTip(); renderHistory();
+        navigate('main'); homeScreen.renderHistory();
     });
-    els.btnPreview.addEventListener('click', openPreview);
+    els.btnPreview.addEventListener('click', () => previewScreen.openPreview(currentUrl, {
+        previewDialog: $('preview-dialog'),
+        previewImg: $('preview-img'),
+        previewLoading: $('preview-loading'),
+        btnPreview: els.btnPreview,
+        previewTimeout: null,
+    }));
 
-    // --- Info Dialog ---
-    els.btnInfo.addEventListener('click', () => els.infoDialog.classList.remove('hidden'));
-    els.btnCloseInfo.addEventListener('click', () => els.infoDialog.classList.add('hidden'));
-    els.infoDialog.addEventListener('click', (e) => { if (e.target === els.infoDialog) els.infoDialog.classList.add('hidden'); });
-
-    // --- Preview Dialog ---
-    els.btnClosePreview.addEventListener('click', closePreview);
-    els.previewDialog.addEventListener('click', (e) => { if (e.target === els.previewDialog) closePreview(); });
-
-    // --- Guardian Angel ---
-    els.btnSaveGuardian.addEventListener('click', () => {
-        const phone = els.guardianPhone.value.trim().replace(/\D/g, '');
-        if (phone) {
-            localStorage.setItem(GUARDIAN_KEY, phone);
-            els.guardianStatus.textContent = '✅ Experto guardado';
-            hapticFeedback('success');
-            setTimeout(() => els.guardianStatus.textContent = '', 3000);
-        } else { showToast('Introduce un número válido'); }
+    // --- Dialogs ---
+    dialogScreen.bindInfoDialog({
+        btnInfo: $('btn-info'),
+        infoDialog: $('info-dialog'),
+        btnCloseInfo: $('btn-close-info'),
     });
 
-    // --- SOS ---
-    els.btnSos.addEventListener('click', () => {
-        const phone = localStorage.getItem(GUARDIAN_KEY);
-        if (!phone) return;
-        const brandInfo = els.resultBrand.style.display !== 'none' ? `\n🔍 Identidad: ${els.brandMsg.textContent}` : '';
-        const message = `🛡️ *CENTINELA SOS* 👼\n\nHe analizado este enlace y la app me da un aviso. ¿Me puedes decir si es seguro entrar?\n\n🔗 *Enlace:* ${currentUrl}${brandInfo}\n⚠️ *Veredicto:* ${els.resultTitle.textContent}\n\n¡Gracias experto!`;
-        window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
-        hapticFeedback('medium');
+    els.btnClosePreview.addEventListener('click', () => previewScreen.closePreviewDialog({
+        previewDialog: $('preview-dialog'),
+        previewImg: $('preview-img'),
+        btnPreview: els.btnPreview,
+    }));
+    $('preview-dialog')?.addEventListener('click', (e) => {
+        if (e.target.id === 'preview-dialog') previewScreen.closePreviewDialog({
+            previewDialog: $('preview-dialog'),
+            previewImg: $('preview-img'),
+            btnPreview: els.btnPreview,
+        });
     });
+
+    // --- Guardian ---
+    guardianScreen.initGuardian({
+        guardianPhone: $('guardian-phone'),
+    });
+    guardianScreen.mount();
 
     // --- Error Dialog ---
     els.btnCloseError.addEventListener('click', closeError);
     els.btnErrorRetry.addEventListener('click', () => { closeError(); if (lastRetryAction) lastRetryAction(); });
-    els.errorDialog.addEventListener('click', (e) => { if (e.target === els.errorDialog) closeError(); });
+    $('error-dialog')?.addEventListener('click', (e) => { if (e.target.id === 'error-dialog') closeError(); });
 
     // --- Keyboard: Escape cierra diálogos/scanner o no hace nada ---
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
-            if (!els.infoDialog.classList.contains('hidden')) {
-                els.infoDialog.classList.add('hidden');
-                return;
-            }
-            if (!els.errorDialog.classList.contains('hidden')) {
-                closeError();
-                return;
-            }
-            if (!els.previewDialog.classList.contains('hidden')) {
-                closePreview();
-                return;
-            }
-            if (document.getElementById('screen-scanner')?.classList.contains('active')) {
-                navigate('main');
-                return;
-            }
+            if (!$('info-dialog')?.classList.contains('hidden')) { $('info-dialog').classList.add('hidden'); return; }
+            if (!$('error-dialog')?.classList.contains('hidden')) { closeError(); return; }
+            if (!$('preview-dialog')?.classList.contains('hidden')) { previewScreen.closePreviewDialog({ previewDialog: $('preview-dialog'), previewImg: $('preview-img'), btnPreview: els.btnPreview }); return; }
+            if (document.getElementById('screen-scanner')?.classList.contains('active')) { navigate('main'); return; }
         }
     });
 }
@@ -478,35 +276,21 @@ async function registerServiceWorker() {
    Init
    ============================================ */
 function init() {
-    // 0. Registrar screens en el router
     register('main', { mount: homeScreen.mount, unmount: homeScreen.unmount });
     register('stats', { mount: (container) => renderStatsScreen($('stats-container')) });
     register('result', { mount: resultScreen.mount, unmount: resultScreen.unmount });
     register('scanner', { mount: scannerScreen.mount, unmount: scannerScreen.unmount });
 
-    // 0b. Navegación inferior vinculada al router
     bindNav('.nav-btn[data-screen="main"]', 'main');
     bindNav('.nav-btn[data-screen="stats"]', 'stats');
 
-    // 0c. Cargar Ángel de la Guarda
-    initGuardian();
-
-    // 1. Registrar Service Worker
     registerServiceWorker();
 
-    // 2. Mostrar onboarding si primera vez
-    initOnboarding();
-
-    // 3. Cargar tip del día
-    loadTip();
-
-    // 4. Renderizar historial
-    renderHistory();
-
-    // 5. Conectar event listeners
+    homeScreen.mount();
+    getRandomTip();
+    homeScreen.renderHistory();
     initEventListeners();
 
-    // 6. Comprobar si se abrió vía Web Share Target o Shortcut
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('action') === 'scan') { openScanner(); }
     const sharedUrl = checkSharedUrl();
@@ -515,9 +299,6 @@ function init() {
         updateCheckButton();
         setTimeout(() => analyzeCurrentUrl(), 500);
     }
-
-    // 7. Rotar tip cada 30 segundos
-    setInterval(loadTip, 30000);
 }
 
 // Arrancar cuando el DOM esté listo
