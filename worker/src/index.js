@@ -6,15 +6,13 @@
 
 const ALLOWED_ORIGIN_REGEX = /^https:\/\/(centinela-pwa\.pages\.dev|.*\.pages\.dev)$|^http:\/\/localhost(:\d+)?$|^http:\/\/127\.0\.0\.1(:\d+)?$/;
 
-function getCorsHeaders(request) {
-  const origin = request.headers.get("Origin") || "";
-  const allowedOrigin = ALLOWED_ORIGIN_REGEX.test(origin) ? origin : "https://centinela-pwa.pages.dev";
-  return {
-    "Access-Control-Allow-Origin": allowedOrigin,
-    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
-  };
-}
+const CORS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type',
+  'Access-Control-Max-Age': '86400',
+};
+const JSON_HEADERS = { 'Content-Type': 'application/json', ...CORS };
 
 /**
  * Codifica una cadena UTF-8 en Base64URL segura para VirusTotal v3 sin relleno (=)
@@ -253,63 +251,45 @@ async function scanUrl(targetUrl, env) {
 
 // ── Worker entrypoint ─────────────────────────────────────────────
 
+const localCache = new Map();
+
 export default {
   async fetch(request, env, ctx) {
-    const corsHeaders = getCorsHeaders(request);
+    const url = new URL(request.url);
 
-    if (request.method === "OPTIONS") {
-      return new Response(null, { headers: corsHeaders });
+    if (request.method === 'OPTIONS') {
+      return new Response(null, { headers: CORS });
     }
 
-    // Healthcheck endpoint
-    if (request.method === "GET") {
-      const url = new URL(request.url);
-      if (url.pathname === "/health") {
-        return new Response(JSON.stringify({
-          status: "ok",
-          timestamp: new Date().toISOString(),
-          version: "2.2.0"
-        }), {
-          status: 200,
-          headers: { "Content-Type": "application/json", ...corsHeaders }
-        });
-      }
-      return new Response("Not found", { status: 404, headers: corsHeaders });
-    }
-
-    try {
-      if (request.method !== "POST") {
-        return new Response("Method not allowed", { status: 405, headers: corsHeaders });
-      }
-
-      const body = await request.json();
-      const targetUrl = body.url;
-
-      if (!targetUrl) {
-        return new Response("Missing URL", { status: 400, headers: corsHeaders });
-      }
-
-      try {
-        new URL(targetUrl);
-      } catch (_) {
-        return new Response(
-          JSON.stringify({ error: "La URL proporcionada no es válida" }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-
-      const scanResult = await scanUrl(targetUrl, env);
-
-      return new Response(JSON.stringify(scanResult), {
+    if (request.method === 'GET' && url.pathname === '/health') {
+      return new Response(JSON.stringify({ status: 'ok', timestamp: new Date().toISOString(), version: '2.4.0' }), {
         status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" }
-      });
-
-    } catch (err) {
-      return new Response(JSON.stringify({ error: err.message }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" }
+        headers: { 'Content-Type': 'application/json', ...CORS },
       });
     }
-  }
+
+    if (request.method === 'POST' && url.pathname === '/api/local-check') {
+      try {
+        const { url: targetUrl } = await request.json();
+        if (!targetUrl) return new Response(JSON.stringify({ error: 'Missing URL' }), { status: 400, headers: JSON_HEADERS });
+        try { new URL(targetUrl); } catch {
+          return new Response(JSON.stringify({ error: 'La URL proporcionada no es válida' }), { status: 400, headers: JSON_HEADERS });
+        }
+
+        const cached = localCache.get(targetUrl);
+        if (cached && cached.expires > Date.now()) {
+          return new Response(JSON.stringify({ cached: true, ...cached.data }), { status: 200, headers: JSON_HEADERS });
+        }
+
+        const result = await checkLocalReputation(targetUrl, env);
+        const payload = { cached: false, ...result };
+        localCache.set(targetUrl, { data: payload, expires: Date.now() + 24 * 60 * 60 * 1000 });
+        return new Response(JSON.stringify(payload), { status: 200, headers: JSON_HEADERS });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: JSON_HEADERS });
+      }
+    }
+
+    return new Response('Not found', { status: 404, headers: CORS });
+  },
 };

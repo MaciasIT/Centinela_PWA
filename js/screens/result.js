@@ -4,6 +4,8 @@
  */
 import { extractDomain } from '../history.js';
 import { checkBrandIdentity } from '../brands.js';
+import { shareResult } from '../share.js';
+import { renderResultCard, createLoadingResultCard } from '../components/result-card.js';
 
 const $ = (id) => document.getElementById(id);
 const GUARDIAN_KEY = 'centinela_guardian';
@@ -54,92 +56,69 @@ export function render(result, currentUrl) {
   const total = result.total || 0;
   const suspicious = result.suspicious || 0;
 
-  let status, icon, title, message;
+  const card = renderResultCard({
+    url: currentUrl,
+    result,
+    onOpen: () => { if (currentUrl) window.open(currentUrl, '_blank', 'noopener,noreferrer'); },
+    onShare: async () => shareCurrentResult(currentUrl, result),
+    onPreview: () => openCurrentPreview(currentUrl),
+  });
 
-  if (total === 0) {
-    status = 'warning'; icon = '⚠️';
-    title = 'Análisis no disponible';
-    message = 'Ningún motor de seguridad ha podido analizar este enlace todavía. Puede que sea demasiado nuevo o no esté indexado por VirusTotal.';
-  } else if (positives === 0 && suspicious === 0) {
-    status = 'safe'; icon = '✅';
-    title = 'Este enlace es seguro';
-    message = `${total} motores de seguridad lo han analizado y ninguno ha encontrado problemas. Puedes abrirlo con tranquilidad.`;
-  } else if (positives > 3) {
-    status = 'danger'; icon = '🚨';
-    title = '¡No abras este enlace!';
-    message = `${positives} de ${total} motores de seguridad lo han marcado como peligroso. Podría ser una estafa, phishing o contener malware.`;
-  } else {
-    status = 'warning'; icon = '⚠️';
-    title = 'Ten cuidado con este enlace';
-    message = `${positives + suspicious} de ${total} motores han encontrado algo sospechoso. Te recomendamos no introducir datos personales en esta web.`;
+  const container = document.querySelector('#screen-result .result-container');
+  if (container) {
+    container.innerHTML = '';
+    container.appendChild(card);
   }
 
-  _els.resultIcon.className = `result-traffic-light ${status}`;
-  _els.resultIcon.innerHTML = `<span>${icon}</span>`;
-  _els.resultTitle.textContent = title;
-  _els.resultTitle.className = `result-title ${status}`;
-  _els.resultMessage.textContent = message;
-  _els.resultUrl.textContent = currentUrl;
-
-  // Identidad de marca
-  const domain = extractDomain(currentUrl);
-  const finalDomain = result.finalUrl ? extractDomain(result.finalUrl) : null;
-  const brandInfo = checkBrandIdentity(domain) || (finalDomain ? checkBrandIdentity(finalDomain) : null);
-
-  if (brandInfo) {
-    _els.resultBrand.style.display = 'flex';
-    _els.resultBrand.className = 'result-brand ' + (brandInfo.isOfficial ? 'official' : 'suspicious');
-    _els.brandIcon.textContent = brandInfo.isOfficial ? '✅' : '⚠️';
-    _els.brandMsg.textContent = brandInfo.isOfficial ? 'Identidad Oficial: ' + brandInfo.brandName : '¡Posible Suplantación!';
-    _els.brandDetail.textContent = brandInfo.isOfficial
-      ? `Este es un dominio oficial confirmado de ${brandInfo.brandName}.`
-      : `Esta web utiliza el nombre de ${brandInfo.brandName} pero NO parece ser su sitio oficial. Ten mucho cuidado si te piden datos.`;
-  } else {
-    _els.resultBrand.style.display = 'none';
-  }
-
-  // X-Ray
-  if (result.finalUrl && result.finalUrl !== currentUrl && !result.finalUrl.endsWith(currentUrl) && !currentUrl.endsWith(result.finalUrl)) {
-    _els.resultFinalUrl.textContent = result.finalUrl;
-    _els.resultPageTitle.textContent = result.title || '';
-    _els.resultXray.style.display = 'block';
-  } else {
-    _els.resultXray.style.display = 'none';
-  }
-
-  _els.btnOpenUrl.style.display = status === 'danger' ? 'none' : 'inline-flex';
-
+  updateSosButton(currentUrl, positives, total);
   renderTrustLevel(result);
-  updateSosButton(status);
-  renderTechnicalDetails(result, status);
+  renderTechnicalDetails(result, statusFromResult(result));
 
-  return { status, positives, total };
+  return { status: statusFromResult(result), positives, total };
 }
 
-function updateSosButton(status) {
+function statusFromResult(result) {
+  const positives = result.positives || 0;
+  const total = result.total || 0;
+  const suspicious = result.suspicious || 0;
+  if (total === 0) return 'warning';
+  if (positives === 0 && suspicious === 0) return 'safe';
+  if (positives > 3) return 'danger';
+  return 'warning';
+}
+
+function updateSosButton(currentUrl, positives, total) {
+  const status = statusFromResult({ positives, total });
   const phone = localStorage.getItem(GUARDIAN_KEY);
-  _els.btnSos.style.display = (phone && status !== 'safe') ? 'inline-flex' : 'none';
+  const btnSos = document.getElementById('btn-sos');
+  if (btnSos) btnSos.style.display = (phone && status !== 'safe') ? 'inline-flex' : 'none';
 }
 
 function renderTrustLevel(result) {
+  const resultTrust = document.getElementById('result-trust');
+  const trustMsg = document.getElementById('trust-msg');
+  const trustIcon = document.getElementById('trust-icon');
+  if (!resultTrust || !trustMsg || !trustIcon) return;
+
   if (!result.firstSubmissionDate) {
-    _els.resultTrust.style.display = 'none';
+    resultTrust.style.display = 'none';
     return;
   }
+
   const firstSeen = new Date(result.firstSubmissionDate * 1000);
   const sixMonthsAgo = new Date();
   sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-  _els.resultTrust.style.display = 'flex';
-  _els.resultTrust.className = 'result-trust';
+  resultTrust.style.display = 'flex';
+  resultTrust.className = 'result-trust';
 
   if (firstSeen > sixMonthsAgo) {
-    _els.resultTrust.classList.add('new');
-    _els.trustMsg.textContent = 'Sitio Muy Reciente';
-    _els.trustIcon.textContent = '⏳';
+    resultTrust.classList.add('new');
+    trustMsg.textContent = 'Sitio Muy Reciente';
+    trustIcon.textContent = '⏳';
   } else {
-    _els.resultTrust.classList.add('old');
-    _els.trustMsg.textContent = 'Sitio Establecido';
-    _els.trustIcon.textContent = '🕰️';
+    resultTrust.classList.add('old');
+    trustMsg.textContent = 'Sitio Establecido';
+    trustIcon.textContent = '🕰️';
   }
 }
 
@@ -149,6 +128,10 @@ function renderTechnicalDetails(result, status) {
   const harmless = result.harmless || 0;
   const undetected = result.undetected || 0;
   const suspicious = result.suspicious || 0;
+
+  const resultDetailsContent = document.getElementById('result-details-content');
+  const resultDetails = document.getElementById('result-details');
+  if (!resultDetailsContent || !resultDetails) return;
 
   let html = `<div class="detail-grid">
     <div class="detail-row"><span class="detail-label">Motores que lo analizaron</span><span class="detail-value">${total}</span></div>
@@ -171,11 +154,11 @@ function renderTechnicalDetails(result, status) {
     html += `<div class="detail-engines"><div class="detail-engines-title">Motores que alertaron:</div><div class="engine-list">${Object.entries(engines).map(([name]) => `<span class="engine-tag malicious">${name}</span>`).join('')}</div></div>`;
   }
 
-  _els.resultDetailsContent.innerHTML = html;
+  resultDetailsContent.innerHTML = html;
 
   if (status === 'danger') {
-    _els.resultDetails.setAttribute('open', '');
+    resultDetails.setAttribute('open', '');
   } else {
-    _els.resultDetails.removeAttribute('open');
+    resultDetails.removeAttribute('open');
   }
 }

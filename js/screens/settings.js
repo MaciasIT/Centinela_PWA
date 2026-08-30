@@ -10,7 +10,7 @@ import { saveGuardianPhone, loadGuardianPhone, clearGuardianPhone } from '../scr
 import { clearHistory as removeHistory } from '../history.js';
 import * as stats from '../stats.js';
 import { createButton } from '../components/button.js';
-import { createDialog } from '../components/dialog.js';
+import { openDialog } from '../components/dialog.js';
 import { showToast } from '../components/toast.js';
 
 export function mount(container) {

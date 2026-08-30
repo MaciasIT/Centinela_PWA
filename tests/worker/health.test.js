@@ -35,10 +35,10 @@ ok('GET / rutas desconocidas responde 404', async () => {
   if (res.status !== 404) throw new Error(`status ${res.status}`);
 });
 
-ok('POST /api/scan vacío todavía tiene cuerpo parseable en JSON', async () => {
+ok('POST /api/local-check vacío todavía tiene cuerpo parseable en JSON', async () => {
   const worker = await loadWorker();
   const body = JSON.stringify({});
-  const req = makeReq('POST', '/api/scan', body);
+  const req = makeReq('POST', '/api/local-check', body);
   const res = await worker.fetch(req, {}, {});
   const text = await res.text();
   if (!text.includes('Missing URL')) throw new Error(text || 'sin respuesta útil');
