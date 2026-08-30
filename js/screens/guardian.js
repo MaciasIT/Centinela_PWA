@@ -31,6 +31,18 @@ export function buildSosMessage(currentUrl, resultTitle, brandMsg, brandVisible)
   return `🛡️ *CENTINELA SOS* 👼\n\nHe analizado este enlace y la app me da un aviso. ¿Me puedes decir si es seguro entrar?\n\n🔗 *Enlace:* ${currentUrl}${brandInfo}\n⚠️ *Veredicto:* ${resultTitle}\n\n¡Gracias experto!`;
 }
 
+export function saveGuardianPhone(phone) {
+  localStorage.setItem(GUARDIAN_KEY, phone);
+}
+
+export function loadGuardianPhone() {
+  try { return localStorage.getItem(GUARDIAN_KEY) || ''; } catch { return ''; }
+}
+
+export function clearGuardianPhone() {
+  try { localStorage.removeItem(GUARDIAN_KEY); } catch {}
+}
+
 export function openSosWhatsApp(phone, message) {
   if (!phone) return;
   window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
