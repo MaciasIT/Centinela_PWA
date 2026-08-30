@@ -3,7 +3,7 @@
  * Orquestador de toda la aplicación
  */
 
-import { analyzeUrl, validateUrl } from './api.js';
+import { analyzeUrl, validateUrl, checkLocalReputation } from './api.js';
 import { scanFromImage } from './scanner.js';
 import { addToHistory, clearHistory } from './history.js';
 import { getRandomTip } from './tips.js';
@@ -99,12 +99,30 @@ async function analyzeCurrentUrl() {
     hapticFeedback('medium');
     navigate('loading');
 
+    // Mostrar veredicto local inmediato
+    const local = await checkLocalReputation(currentUrl);
+    const localCard = document.querySelector('#screen-result .result-container');
+    if (localCard && local) {
+        localCard.innerHTML = '';
+        const quick = document.createElement('div');
+        quick.className = 'result-card';
+        quick.innerHTML = `
+            <div class="result-status-row">
+                <span class="result-emoji" aria-hidden="true">${local.classification === 'safe' ? '🟢' : local.classification === 'danger' ? '🔴' : '🟡'}</span>
+                <span class="result-label ${local.classification}">${local.classification === 'safe' ? 'Seguro' : local.classification === 'danger' ? 'Peligroso' : 'Sospechoso'}</span>
+            </div>
+            <p class="result-text">Veredicto rápido: ${local.reasons?.length ? local.reasons.join('. ') : 'Sin indicadores locales sospechosos.'}</p>
+            <div class="result-loading"><div class="spinner"></div>Comprobando fuentes externas...</div>
+        `;
+        localCard.appendChild(quick);
+    }
+
     try {
         const result = await analyzeUrl(currentUrl);
         currentResult = result;
         addToHistory(currentUrl, result);
         recordScan(currentUrl, result.positives === 0 ? 'safe' : result.positives > 3 ? 'dangerous' : 'suspicious');
-        navigate('result', { result, url: currentUrl });
+        navigate('result', { result, url: currentUrl, local: result.local || local });
         if (result.positives === 0) hapticFeedback('success');
         else if (result.positives > 3) hapticFeedback('danger');
         else hapticFeedback('warning');

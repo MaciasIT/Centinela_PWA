@@ -12,20 +12,26 @@ const STATUS_TEXT = {
   danger: 'No entres: motores detectaron malware o phishing.',
 };
 
-export function renderResultCard({ url, result, onOpen, onShare, onPreview }) {
+function reasonsHtml(reasons) {
+  if (!Array.isArray(reasons) || reasons.length === 0) return '';
+  return `<ul class="result-reasons"><li>${reasons.join('</li><li>')}</li></ul>`;
+}
+
+export function renderResultCard({ url, result, local, onOpen, onShare, onPreview }) {
   const card = document.createElement('div');
   card.className = 'result-card';
 
-  const status = result.positives === 0 ? 'safe' : result.positives > 3 ? 'danger' : 'warning';
-  const emoji = status === 'safe' ? '🟢' : status === 'danger' ? '🔴' : '🟡';
-  const label = status === 'safe' ? 'Seguro' : status === 'danger' ? 'Peligroso' : 'Sospechoso';
+  const effective = local && local.classification ? local : { classification: status };
+  const emoji = effective.classification === 'safe' ? '🟢' : effective.classification === 'danger' ? '🔴' : '🟡';
+  const label = effective.classification === 'safe' ? 'Seguro' : effective.classification === 'danger' ? 'Peligroso' : 'Sospechoso';
 
   card.innerHTML = `
     <div class="result-status-row">
       <span class="result-emoji" aria-hidden="true">${emoji}</span>
-      <span class="result-label ${status}">${label}</span>
+      <span class="result-label ${effective.classification}">${label}</span>
     </div>
-    <p class="result-text">${STATUS_TEXT[status] || ''}</p>
+    <p class="result-text">${STATUS_TEXT[effective.classification] || STATUS_TEXT[status] || ''}</p>
+    ${reasonsHtml(effective.reasons)}
     <div class="result-actions"></div>
   `;
 

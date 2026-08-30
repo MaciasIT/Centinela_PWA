@@ -1,9 +1,24 @@
 /**
  * Centinela — API Client v2
  * Cliente multi-fuente: VirusTotal + Google Safe Browsing + URLScan.io
+ * + Reputación local instantánea
  */
 
 const API_URL = 'https://centinela-api.michelmacias-it.workers.dev';
+
+export async function checkLocalReputation(url) {
+  try {
+    const res = await fetch(`${API_URL}/api/local-check`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url }),
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Analiza una URL usando el backend multi-fuente
@@ -13,10 +28,13 @@ const API_URL = 'https://centinela-api.michelmacias-it.workers.dev';
 export async function analyzeUrl(url) {
     const normalizedUrl = normalizeUrl(url);
 
+    // Veredicto local instantáneo
+    const local = await checkLocalReputation(normalizedUrl);
+
     // Intentar caché local primero (1h)
     const cached = getLocalCache(normalizedUrl);
     if (cached) {
-        return { ...cached, fromCache: true };
+        return { ...cached, fromCache: true, local };
     }
 
     const controller = new AbortController();
