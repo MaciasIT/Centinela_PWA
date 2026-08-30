@@ -17,27 +17,36 @@ Ciberseguridad sin jerga. Sin informes técnicos. Solo un veredicto claro:
 
 ---
 
-## ✨ Características actuales
+## ✅ Características completadas
 
-| Feature | Estado |
-|---------|--------|
-| Escaneo rápido de URL/QR | ✅ |
-| Semáforo 🟢🟡🔴 con explicación sencilla | ✅ |
-| Vista previa aislada (mshots) | ✅ |
-| Detección de identidad sospechosa | ✅ |
-| Indicador de dominio reciente | ✅ |
-| Compartir resultado | ✅ |
-| Historial local con filtros | ✅ |
-| Estadísticas locales | ✅ |
-| Modo Ángel de la Guarda (SOS WhatsApp) | ✅ |
-| PWA instalable + share target | ✅ |
-| Accesibilidad básica (`aria-live`, Escape, foco) | ✅ |
+| Feature | Fase | Estado |
+|---------|------|--------|
+| Escaneo rápido de URL/QR | F1 | ✅ |
+| Semáforo 🟢🟡🔴 con explicación sencilla | F1 | ✅ |
+| Vista previa aislada (mshots) | F1 | ✅ |
+| Detección de identidad sospechosa | F1 | ✅ |
+| Indicador de dominio reciente | F1 | ✅ |
+| Compartir resultado | F1 | ✅ |
+| PWA instalable + share target | F1 | ✅ |
+| Accesibilidad básica (`aria-live`, Escape, foco) | F1 | ✅ |
+| Healthcheck worker `/health` | F2 | ✅ |
+| Dashboard estadísticas local | F2 | ✅ |
+| Navegación inferior: Inicio \| Estadísticas \| Historial \| Ajustes | F2-F3 | ✅ |
+| Sistema screens/partials + router | F3 | ✅ |
+| Store observable (`getState`, `subscribe`, `reset`) | F3 | ✅ |
+| Componentes reutilizables: button, dialog, toast, spinner, result-card | F3 | ✅ |
+| Pantalla Historial con filtros | F3 | ✅ |
+| Pantalla Configuración (guardian phone, borrado datos) | F3 | ✅ |
+| Motor reputación local (RDAP, entropía, TLDs riesgo, lista negra) | F4 | ✅ |
+| Endpoint `POST /api/local-check` con cache 24h | F4 | ✅ |
+| Veredicto local inmediato en frontend | F4 | ✅ |
 
 ## 🛠️ Stack
 
 - **Frontend:** HTML5 + CSS + JS ESM (Vite)
 - **Backend:** Cloudflare Worker (`worker/`)
 - **Motores:** VirusTotal v3, Google Safe Browsing, URLScan.io
+- **Reputación local:** RDAP, entropía, TLDs de alto riesgo, lista negra
 - **Preview:** WordPress mshots
 - **Despliegue:** Cloudflare Pages + GitHub Actions
 
@@ -54,7 +63,7 @@ Ciberseguridad sin jerga. Sin informes técnicos. Solo un veredicto claro:
 ## 📖 Documentación
 
 - `PLAN_MEJORAS_2026-07-20.md` — roadmap y fases
-- `docs/validacion-centinela-main-2026-07-30.md` — última validación
+- `docs/validacion-centinela-main-2026-08-30.md` — última validación
 - `manual.html` — guía de usuario
 
 ---
