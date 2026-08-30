@@ -16,6 +16,7 @@ import * as scannerScreen from './screens/scanner.js';
 import * as previewScreen from './screens/preview.js';
 import * as dialogScreen from './screens/dialog.js';
 import * as guardianScreen from './screens/guardian.js';
+import * as historyScreen from './screens/history.js';
 
 /* ============================================
    DOM Helpers
@@ -277,6 +278,7 @@ async function registerServiceWorker() {
    ============================================ */
 function init() {
     register('main', { mount: homeScreen.mount, unmount: homeScreen.unmount });
+    register('history', { mount: historyScreen.mount, unmount: historyScreen.unmount });
     register('stats', { mount: (container) => renderStatsScreen($('stats-container')) });
     register('result', { mount: resultScreen.mount, unmount: resultScreen.unmount });
     register('scanner', { mount: scannerScreen.mount, unmount: scannerScreen.unmount });
