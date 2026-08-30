@@ -2,64 +2,63 @@
 
 ![Centinela Hero](assets/banner.png)
 
-Centinela es una PWA (Aplicación Web Progresiva) de ciberseguridad diseñada específicamente para personas no técnicas. Permite verificar si un enlace (URL) o código QR es seguro o fraudulento en cuestión de segundos, previniendo posibles ataques de *phishing* y descargas de malware.
+Centinela es una PWA (Aplicación Web Progresiva) de ciberseguridad diseñada para personas no técnicas. Permite verificar enlaces y códigos QR en segundos, previniendo phishing y malware con una interfaz simple tipo semáforo.
 
 🌍 **Enlace en vivo:** [https://centinela-pwa.pages.dev](https://centinela-pwa.pages.dev)
 
 ---
 
-## 🎯 Objetivo y Filosofía
+## 🎯 Filosofía
 
-Esta aplicación ha sido rediseñada desde cero ("A prueba de abuelas") con un solo objetivo en mente: **Hacer que la ciberseguridad sea amigable y accesible para toda tu familia**.
-
-En lugar de lanzar informes técnicos, Centinela usa un **Sistema de Semáforos** claro:
-- 🟢 **Seguro:** Ningún motor de seguridad ha encontrado actividad sospechosa.
-- 🟡 **Sospechoso:** Existen alertas o la identidad del sitio no está clara.
-- 🔴 **Peligroso:** Positivo para Malware o Phishing. **¡No entres!**
+Ciberseguridad sin jerga. Sin informes técnicos. Solo un veredicto claro:
+- 🟢 Seguro
+- 🟡 Sospechoso
+- 🔴 Peligroso
 
 ---
 
-## ✨ Superpoderes Incluidos (v3.0)
+## ✨ Características actuales
 
-Centinela ahora incluye funciones avanzadas de protección que no encontrarás en otros escáneres:
+| Feature | Estado |
+|---------|--------|
+| Escaneo rápido de URL/QR | ✅ |
+| Semáforo 🟢🟡🔴 con explicación sencilla | ✅ |
+| Vista previa aislada (mshots) | ✅ |
+| Detección de identidad sospechosa | ✅ |
+| Indicador de dominio reciente | ✅ |
+| Compartir resultado | ✅ |
+| Historial local con filtros | ✅ |
+| Estadísticas locales | ✅ |
+| Modo Ángel de la Guarda (SOS WhatsApp) | ✅ |
+| PWA instalable + share target | ✅ |
+| Accesibilidad básica (`aria-live`, Escape, foco) | ✅ |
 
-### 🕵️ Efecto Rayos X (Anti-Redirecciones)
-Atraviesa enlaces acortados para mostrarte la **URL real de destino** antes de que hagas clic.
+## 🛠️ Stack
 
-### 📸 Vista Previa Segura (Aislamiento Total)
-Genera una **fotografía real** de la web. Mira su aspecto sin riesgo de interacción maliciosa.
-
-### 🏢 Detector de Identidad (Anti-Phishing)
-Detección de suplantación de marcas oficiales (Bancos, Amazon, PayPal).
-
-### 🕰️ Radar de Confianza (Antigüedad)
-Centinela analiza la edad del dominio. Los sitios creados recientemente (menos de 6 meses) se marcan con precaución especial, previniendo estafas de nueva creación.
-
-### 👼 Modo Ángel de la Guarda (Botón SOS)
-Configura un contacto de confianza para consultarle dudas vía WhatsApp con un solo toque.
-
----
-
-## 📱 Instalación y Uso Móvil
-
-Al ser una PWA, Centinela se comporta como una App nativa:
-1.  **Instalación:** Dale a "Añadir a pantalla de inicio" en tu navegador.
-2.  **Menú Compartir:** Centinela aparece en el menú de "Compartir" de Android e iOS. Mantén pulsado un enlace en WhatsApp y envíalo directamente a Centinela.
-3.  **Accesos Directos:** Mantén pulsado el icono en tu pantalla de inicio para abrir directamente el escáner de códigos QR.
+- **Frontend:** HTML5 + CSS + JS ESM (Vite)
+- **Backend:** Cloudflare Worker (`worker/`)
+- **Motores:** VirusTotal v3, Google Safe Browsing, URLScan.io
+- **Preview:** WordPress mshots
+- **Despliegue:** Cloudflare Pages + GitHub Actions
 
 ---
 
-## 🛠️ Stack Tecnológico
+## 📱 Uso
 
-- **Frontend:** HTML5, CSS3 (Vanilla) y JS (ES6 Modules).
-- **Backend:** Cloudflare Workers (Serverless Proxy).
-- **Inteligencia:** VirusTotal v3 API.
-- **Visualización:** WordPress mshots API.
+1. Pega o comparte un enlace
+2. Pulsa **Comprobar**
+3. Lee el semáforo y decide
 
 ---
 
-## 📖 Manual de Usuario
-Puedes consultar la [Guía Completa de Seguridad](manual.html) dentro de la propia aplicación o en el archivo del repositorio.
+## 📖 Documentación
 
-## 🤝 Colaboradores
-Proyecto mantenido y desarrollado por [Michel Macias](https://github.com/MaciasIT).
+- `PLAN_MEJORAS_2026-07-20.md` — roadmap y fases
+- `docs/validacion-centinela-main-2026-07-30.md` — última validación
+- `manual.html` — guía de usuario
+
+---
+
+## 🤝 Proyecto
+
+Mantenido por [Michel Macias](https://github.com/MaciasIT) · Repo: `MaciasIT/Centinela_PWA`
