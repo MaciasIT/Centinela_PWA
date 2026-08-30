@@ -5,7 +5,7 @@
 
 import { analyzeUrl, validateUrl } from './api.js';
 import { scanFromImage } from './scanner.js';
-import { clearHistory } from './history.js';
+import { addToHistory, clearHistory } from './history.js';
 import { getRandomTip } from './tips.js';
 import { shareResult, checkSharedUrl, hapticFeedback } from './share.js';
 import { recordScan } from './stats.js';
