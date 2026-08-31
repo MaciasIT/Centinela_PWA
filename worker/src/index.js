@@ -268,6 +268,39 @@ export default {
       });
     }
 
+    if (request.method === 'POST' && url.pathname === '/api/scan') {
+      try {
+        const body = await request.json();
+        const targetUrl = body.url;
+
+        if (!targetUrl) {
+          return new Response(JSON.stringify({ error: 'Missing URL' }), { status: 400, headers: JSON_HEADERS });
+        }
+
+        try {
+          new URL(targetUrl);
+        } catch (_) {
+          return new Response(
+            JSON.stringify({ error: 'La URL proporcionada no es válida' }),
+            { status: 400, headers: JSON_HEADERS }
+          );
+        }
+
+        const scanResult = await scanUrl(targetUrl, env);
+
+        return new Response(JSON.stringify(scanResult), {
+          status: 200,
+          headers: JSON_HEADERS
+        });
+
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), {
+          status: 500,
+          headers: JSON_HEADERS
+        });
+      }
+    }
+
     if (request.method === 'POST' && url.pathname === '/api/local-check') {
       try {
         const { url: targetUrl } = await request.json();
