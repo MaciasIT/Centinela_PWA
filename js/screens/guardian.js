@@ -32,15 +32,25 @@ export function buildSosMessage(currentUrl, resultTitle, brandMsg, brandVisible)
 }
 
 export function saveGuardianPhone(phone) {
-  localStorage.setItem(GUARDIAN_KEY, phone);
+  try {
+    localStorage.setItem(GUARDIAN_KEY, phone);
+    localStorage.setItem('centinela_guardian', phone);
+  } catch {}
 }
 
 export function loadGuardianPhone() {
-  try { return localStorage.getItem(GUARDIAN_KEY) || ''; } catch { return ''; }
+  try {
+    return localStorage.getItem(GUARDIAN_KEY) || localStorage.getItem('centinela_guardian') || '';
+  } catch {
+    return '';
+  }
 }
 
 export function clearGuardianPhone() {
-  try { localStorage.removeItem(GUARDIAN_KEY); } catch {}
+  try {
+    localStorage.removeItem(GUARDIAN_KEY);
+    localStorage.removeItem('centinela_guardian');
+  } catch {}
 }
 
 export function openSosWhatsApp(phone, message) {

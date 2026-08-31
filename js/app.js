@@ -8,7 +8,7 @@ import { scanFromImage } from './scanner.js';
 import { addToHistory, clearHistory } from './history.js';
 import { getRandomTip } from './tips.js';
 import { shareResult, checkSharedUrl, hapticFeedback } from './share.js';
-import { recordScan } from './stats.js';
+import { recordScan, renderStatsScreen } from './stats.js';
 import { register, navigate, bindNav } from './router.js';
 import * as homeScreen from './screens/home.js';
 import * as resultScreen from './screens/result.js';
@@ -40,6 +40,19 @@ const els = {
     btnShare: $('btn-share'),
     btnNewCheck: $('btn-new-check'),
     btnPreview: $('btn-preview'),
+    btnSos: $('btn-sos'),
+    // Dialogs & Overlays
+    btnClosePreview: $('btn-close-preview'),
+    previewDialog: $('preview-dialog'),
+    previewImg: $('preview-img'),
+    previewLoading: $('preview-loading'),
+    btnInfo: $('btn-info'),
+    infoDialog: $('info-dialog'),
+    btnCloseInfo: $('btn-close-info'),
+    errorDialog: $('error-dialog'),
+    errorMessage: $('error-message'),
+    btnCloseError: $('btn-close-error'),
+    btnErrorRetry: $('btn-error-retry'),
     // Toast
     toast: $('toast'),
     toastMessage: $('toast-message'),
@@ -57,10 +70,11 @@ let lastRetryAction = null;
    Toast
    ============================================ */
 function showToast(message, duration = 3000) {
+    if (!els.toast || !els.toastMessage) return;
     els.toastMessage.textContent = message;
     els.toast.classList.remove('hidden');
     if (toastTimeout) clearTimeout(toastTimeout);
-    toastTimeout = setTimeout(() => els.toast.classList.add('hidden'), duration);
+    toastTimeout = setTimeout(() => els.toast?.classList.add('hidden'), duration);
 }
 
 /* ============================================
@@ -89,7 +103,7 @@ function closeError() {
    URL Analysis Flow
    ============================================ */
 async function analyzeCurrentUrl() {
-    const text = els.urlInput.value.trim();
+    const text = els.urlInput?.value.trim();
     if (!text) return;
 
     const validation = validateUrl(text);
@@ -99,23 +113,8 @@ async function analyzeCurrentUrl() {
     hapticFeedback('medium');
     navigate('loading');
 
-    // Mostrar veredicto local inmediato
+    // Comprobación de reputación local
     const local = await checkLocalReputation(currentUrl);
-    const localCard = document.querySelector('#screen-result .result-container');
-    if (localCard && local) {
-        localCard.innerHTML = '';
-        const quick = document.createElement('div');
-        quick.className = 'result-card';
-        quick.innerHTML = `
-            <div class="result-status-row">
-                <span class="result-emoji" aria-hidden="true">${local.classification === 'safe' ? '🟢' : local.classification === 'danger' ? '🔴' : '🟡'}</span>
-                <span class="result-label ${local.classification}">${local.classification === 'safe' ? 'Seguro' : local.classification === 'danger' ? 'Peligroso' : 'Sospechoso'}</span>
-            </div>
-            <p class="result-text">Veredicto rápido: ${local.reasons?.length ? local.reasons.join('. ') : 'Sin indicadores locales sospechosos.'}</p>
-            <div class="result-loading"><div class="spinner"></div>Comprobando fuentes externas...</div>
-        `;
-        localCard.appendChild(quick);
-    }
 
     try {
         const result = await analyzeUrl(currentUrl);
@@ -147,7 +146,7 @@ async function openScanner() {
         onScan: (decodedText) => {
             hapticFeedback('success');
             navigate('main');
-            els.urlInput.value = decodedText;
+            if (els.urlInput) els.urlInput.value = decodedText;
             updateCheckButton();
             const validation = validateUrl(decodedText);
             if (validation.valid) setTimeout(() => analyzeCurrentUrl(), 300);
@@ -167,7 +166,7 @@ async function handleImageUpload(file) {
     showToast('Buscando código QR en la imagen...');
     try {
         const result = await scanFromImage(file);
-        els.urlInput.value = result;
+        if (els.urlInput) els.urlInput.value = result;
         updateCheckButton();
         hapticFeedback('success');
         showToast('¡Código QR encontrado!');
@@ -183,48 +182,58 @@ async function handleImageUpload(file) {
    ============================================ */
 function initEventListeners() {
     // --- Main Screen ---
-    els.urlInput.addEventListener('input', updateCheckButton);
-    els.urlInput.addEventListener('keydown', (e) => {
+    els.urlInput?.addEventListener('input', updateCheckButton);
+    els.urlInput?.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (els.urlInput.value.trim()) analyzeCurrentUrl(); }
     });
-    els.btnPaste.addEventListener('click', async () => {
+    els.btnPaste?.addEventListener('click', async () => {
         try {
             const text = await navigator.clipboard.readText();
-            if (text) { els.urlInput.value = text; updateCheckButton(); hapticFeedback('light'); showToast('Pegado del portapapeles'); }
+            if (text && els.urlInput) { els.urlInput.value = text; updateCheckButton(); hapticFeedback('light'); showToast('Pegado del portapapeles'); }
         } catch { showToast('No se pudo acceder al portapapeles'); }
     });
-    els.btnCheck.addEventListener('click', analyzeCurrentUrl);
-    els.btnScanQr.addEventListener('click', openScanner);
-    els.btnUploadImage.addEventListener('click', () => els.fileInput.click());
-    els.fileInput.addEventListener('change', (e) => {
+    els.btnCheck?.addEventListener('click', analyzeCurrentUrl);
+    els.btnScanQr?.addEventListener('click', openScanner);
+    els.btnUploadImage?.addEventListener('click', () => els.fileInput?.click());
+    els.fileInput?.addEventListener('change', (e) => {
         const file = e.target.files?.[0];
         if (file) handleImageUpload(file);
-        els.fileInput.value = '';
+        if (els.fileInput) els.fileInput.value = '';
     });
-    els.btnClearHistory.addEventListener('click', () => { clearHistory(); homeScreen.renderHistory(); hapticFeedback('light'); showToast('Historial borrado'); });
+    els.btnClearHistory?.addEventListener('click', () => { clearHistory(); homeScreen.renderHistory(); hapticFeedback('light'); showToast('Historial borrado'); });
 
     // --- Scanner Screen ---
-    els.btnCloseScanner.addEventListener('click', closeScanner);
+    els.btnCloseScanner?.addEventListener('click', closeScanner);
 
     // --- Result Screen ---
-    els.btnOpenUrl.addEventListener('click', () => { if (currentUrl) window.open(currentUrl, '_blank', 'noopener,noreferrer'); });
-    els.btnShare.addEventListener('click', async () => {
+    els.btnOpenUrl?.addEventListener('click', () => { if (currentUrl) window.open(currentUrl, '_blank', 'noopener,noreferrer'); });
+    els.btnShare?.addEventListener('click', async () => {
         if (currentUrl && currentResult) {
             const result = await shareResult(currentUrl, currentResult);
             if (result.method === 'clipboard' || result.method === 'clipboard-legacy') showToast('Resultado copiado al portapapeles');
         }
     });
-    els.btnNewCheck.addEventListener('click', () => {
-        currentUrl = ''; currentResult = null; els.urlInput.value = ''; updateCheckButton();
+    els.btnNewCheck?.addEventListener('click', () => {
+        currentUrl = ''; currentResult = null; if (els.urlInput) els.urlInput.value = ''; updateCheckButton();
         navigate('main'); homeScreen.renderHistory();
     });
-    els.btnPreview.addEventListener('click', () => previewScreen.openPreview(currentUrl, {
+    els.btnPreview?.addEventListener('click', () => previewScreen.openPreview(currentUrl, {
         previewDialog: $('preview-dialog'),
         previewImg: $('preview-img'),
         previewLoading: $('preview-loading'),
         btnPreview: els.btnPreview,
         previewTimeout: null,
     }));
+    els.btnSos?.addEventListener('click', () => {
+        const phone = guardianScreen.loadGuardianPhone();
+        if (!phone) return;
+        const brandVisible = $('result-brand')?.style.display !== 'none';
+        const brandMsg = $('brand-msg')?.textContent || '';
+        const resultTitle = $('result-title')?.textContent || '';
+        const message = guardianScreen.buildSosMessage(currentUrl, resultTitle, brandMsg, brandVisible);
+        guardianScreen.openSosWhatsApp(phone, message);
+        hapticFeedback('medium');
+    });
 
     // --- Dialogs ---
     dialogScreen.bindInfoDialog({
@@ -233,7 +242,7 @@ function initEventListeners() {
         btnCloseInfo: $('btn-close-info'),
     });
 
-    els.btnClosePreview.addEventListener('click', () => previewScreen.closePreviewDialog({
+    els.btnClosePreview?.addEventListener('click', () => previewScreen.closePreviewDialog({
         previewDialog: $('preview-dialog'),
         previewImg: $('preview-img'),
         btnPreview: els.btnPreview,
@@ -253,8 +262,8 @@ function initEventListeners() {
     guardianScreen.mount();
 
     // --- Error Dialog ---
-    els.btnCloseError.addEventListener('click', closeError);
-    els.btnErrorRetry.addEventListener('click', () => { closeError(); if (lastRetryAction) lastRetryAction(); });
+    els.btnCloseError?.addEventListener('click', closeError);
+    els.btnErrorRetry?.addEventListener('click', () => { closeError(); if (lastRetryAction) lastRetryAction(); });
     $('error-dialog')?.addEventListener('click', (e) => { if (e.target.id === 'error-dialog') closeError(); });
 
     // --- Keyboard: Escape cierra diálogos/scanner o no hace nada ---

@@ -1,14 +1,12 @@
 /**
  * Centinela — Result Screen
- * Renderiza el veredicto del análisis: semáforo, detalles, X-Ray, marca, confianza
+ * Renderiza el veredicto del análisis: semáforo, detalles, X-Ray, marca, confianza y acciones
  */
 import { extractDomain } from '../history.js';
 import { checkBrandIdentity } from '../brands.js';
-import { shareResult } from '../share.js';
-import { renderResultCard, createLoadingResultCard } from '../components/result-card.js';
+import { loadGuardianPhone } from './guardian.js';
 
 const $ = (id) => document.getElementById(id);
-const GUARDIAN_KEY = 'centinela_guardian';
 
 let _els = {};
 let _currentUrl = '';
@@ -35,13 +33,15 @@ export function mount(container, data) {
     btnOpenUrl: $('btn-open-url'),
     btnSos: $('btn-sos'),
     btnPreview: $('btn-preview'),
+    btnShare: $('btn-share'),
+    btnNewCheck: $('btn-new-check'),
     previewDialog: $('preview-dialog'),
     previewImg: $('preview-img'),
     previewLoading: $('preview-loading'),
   };
 
   if (data && data.result) {
-    render(data.result, data.url);
+    render(data.result, data.url, data.local);
   }
 }
 
@@ -50,75 +50,127 @@ export function unmount() {
   _currentUrl = '';
 }
 
-export function render(result, currentUrl) {
+export function render(result, currentUrl, local) {
   _currentUrl = currentUrl;
   const positives = result.positives || 0;
   const total = result.total || 0;
   const suspicious = result.suspicious || 0;
 
-  const card = renderResultCard({
-    url: currentUrl,
-    result,
-    onOpen: () => { if (currentUrl) window.open(currentUrl, '_blank', 'noopener,noreferrer'); },
-    onShare: async () => shareCurrentResult(currentUrl, result),
-    onPreview: () => openCurrentPreview(currentUrl),
-  });
+  let status, icon, title, message;
 
-  const container = document.querySelector('#screen-result .result-container');
-  if (container) {
-    container.innerHTML = '';
-    container.appendChild(card);
+  if (total === 0) {
+    status = 'warning';
+    icon = '⚠️';
+    title = 'Análisis no disponible';
+    message = 'Ningún motor de seguridad ha podido analizar este enlace todavía. Puede que sea demasiado nuevo o no esté indexado por VirusTotal.';
+  } else if (positives === 0 && suspicious === 0) {
+    status = 'safe';
+    icon = '✅';
+    title = 'Este enlace es seguro';
+    message = `${total} motores de seguridad lo han analizado y ninguno ha encontrado problemas. Puedes abrirlo con tranquilidad.`;
+  } else if (positives > 3) {
+    status = 'danger';
+    icon = '🚨';
+    title = '¡No abras este enlace!';
+    message = `${positives} de ${total} motores de seguridad lo han marcado como peligroso. Podría ser una estafa, phishing o contener malware.`;
+  } else {
+    status = 'warning';
+    icon = '⚠️';
+    title = 'Ten cuidado con este enlace';
+    message = `${positives + suspicious} de ${total} motores han encontrado algo sospechoso. Te recomendamos no introducir datos personales en esta web.`;
   }
 
-  updateSosButton(currentUrl, positives, total);
+  // Enriquecer mensaje si hay razones del veredicto local y no es seguro
+  const effectiveLocal = local || result.local;
+  if (effectiveLocal && effectiveLocal.reasons && effectiveLocal.reasons.length > 0 && status !== 'safe') {
+    message += ` (${effectiveLocal.reasons.join('. ')})`;
+  }
+
+  if (_els.resultIcon) {
+    _els.resultIcon.className = `result-traffic-light ${status}`;
+    _els.resultIcon.innerHTML = `<span>${icon}</span>`;
+  }
+  if (_els.resultTitle) {
+    _els.resultTitle.textContent = title;
+    _els.resultTitle.className = `result-title ${status}`;
+  }
+  if (_els.resultMessage) {
+    _els.resultMessage.textContent = message;
+  }
+  if (_els.resultUrl) {
+    _els.resultUrl.textContent = currentUrl;
+  }
+
+  // Identidad de marca
+  const domain = extractDomain(currentUrl);
+  const finalDomain = result.finalUrl ? extractDomain(result.finalUrl) : null;
+  const brandInfo = checkBrandIdentity(domain) || (finalDomain ? checkBrandIdentity(finalDomain) : null);
+
+  if (_els.resultBrand) {
+    if (brandInfo) {
+      _els.resultBrand.style.display = 'flex';
+      _els.resultBrand.className = 'result-brand ' + (brandInfo.isOfficial ? 'official' : 'suspicious');
+      if (_els.brandIcon) _els.brandIcon.textContent = brandInfo.isOfficial ? '✅' : '⚠️';
+      if (_els.brandMsg) _els.brandMsg.textContent = brandInfo.isOfficial ? 'Identidad Oficial: ' + brandInfo.brandName : '¡Posible Suplantación!';
+      if (_els.brandDetail) {
+        _els.brandDetail.textContent = brandInfo.isOfficial
+          ? `Este es un dominio oficial confirmado de ${brandInfo.brandName}.`
+          : `Esta web utiliza el nombre de ${brandInfo.brandName} pero NO parece ser su sitio oficial. Ten mucho cuidado si te piden datos.`;
+      }
+    } else {
+      _els.resultBrand.style.display = 'none';
+    }
+  }
+
+  // X-Ray / Redirección
+  if (_els.resultXray) {
+    if (result.finalUrl && result.finalUrl !== currentUrl && !result.finalUrl.endsWith(currentUrl) && !currentUrl.endsWith(result.finalUrl)) {
+      if (_els.resultFinalUrl) _els.resultFinalUrl.textContent = result.finalUrl;
+      if (_els.resultPageTitle) _els.resultPageTitle.textContent = result.title || '';
+      _els.resultXray.style.display = 'block';
+    } else {
+      _els.resultXray.style.display = 'none';
+    }
+  }
+
+  if (_els.btnOpenUrl) {
+    _els.btnOpenUrl.style.display = status === 'danger' ? 'none' : 'inline-flex';
+  }
+
   renderTrustLevel(result);
-  renderTechnicalDetails(result, statusFromResult(result));
+  updateSosButton(status);
+  renderTechnicalDetails(result, status);
 
-  return { status: statusFromResult(result), positives, total };
+  return { status, positives, total };
 }
 
-function statusFromResult(result) {
-  const positives = result.positives || 0;
-  const total = result.total || 0;
-  const suspicious = result.suspicious || 0;
-  if (total === 0) return 'warning';
-  if (positives === 0 && suspicious === 0) return 'safe';
-  if (positives > 3) return 'danger';
-  return 'warning';
-}
-
-function updateSosButton(currentUrl, positives, total) {
-  const status = statusFromResult({ positives, total });
-  const phone = localStorage.getItem(GUARDIAN_KEY);
-  const btnSos = document.getElementById('btn-sos');
-  if (btnSos) btnSos.style.display = (phone && status !== 'safe') ? 'inline-flex' : 'none';
+function updateSosButton(status) {
+  const phone = loadGuardianPhone();
+  if (_els.btnSos) {
+    _els.btnSos.style.display = (phone && status !== 'safe') ? 'inline-flex' : 'none';
+  }
 }
 
 function renderTrustLevel(result) {
-  const resultTrust = document.getElementById('result-trust');
-  const trustMsg = document.getElementById('trust-msg');
-  const trustIcon = document.getElementById('trust-icon');
-  if (!resultTrust || !trustMsg || !trustIcon) return;
-
+  if (!_els.resultTrust) return;
   if (!result.firstSubmissionDate) {
-    resultTrust.style.display = 'none';
+    _els.resultTrust.style.display = 'none';
     return;
   }
-
   const firstSeen = new Date(result.firstSubmissionDate * 1000);
   const sixMonthsAgo = new Date();
   sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-  resultTrust.style.display = 'flex';
-  resultTrust.className = 'result-trust';
+  _els.resultTrust.style.display = 'flex';
+  _els.resultTrust.className = 'result-trust';
 
   if (firstSeen > sixMonthsAgo) {
-    resultTrust.classList.add('new');
-    trustMsg.textContent = 'Sitio Muy Reciente';
-    trustIcon.textContent = '⏳';
+    _els.resultTrust.classList.add('new');
+    if (_els.trustMsg) _els.trustMsg.textContent = 'Sitio Muy Reciente';
+    if (_els.trustIcon) _els.trustIcon.textContent = '⏳';
   } else {
-    resultTrust.classList.add('old');
-    trustMsg.textContent = 'Sitio Establecido';
-    trustIcon.textContent = '🕰️';
+    _els.resultTrust.classList.add('old');
+    if (_els.trustMsg) _els.trustMsg.textContent = 'Sitio Establecido';
+    if (_els.trustIcon) _els.trustIcon.textContent = '🕰️';
   }
 }
 
@@ -129,9 +181,7 @@ function renderTechnicalDetails(result, status) {
   const undetected = result.undetected || 0;
   const suspicious = result.suspicious || 0;
 
-  const resultDetailsContent = document.getElementById('result-details-content');
-  const resultDetails = document.getElementById('result-details');
-  if (!resultDetailsContent || !resultDetails) return;
+  if (!_els.resultDetailsContent || !_els.resultDetails) return;
 
   let html = `<div class="detail-grid">
     <div class="detail-row"><span class="detail-label">Motores que lo analizaron</span><span class="detail-value">${total}</span></div>
@@ -154,11 +204,11 @@ function renderTechnicalDetails(result, status) {
     html += `<div class="detail-engines"><div class="detail-engines-title">Motores que alertaron:</div><div class="engine-list">${Object.entries(engines).map(([name]) => `<span class="engine-tag malicious">${name}</span>`).join('')}</div></div>`;
   }
 
-  resultDetailsContent.innerHTML = html;
+  _els.resultDetailsContent.innerHTML = html;
 
   if (status === 'danger') {
-    resultDetails.setAttribute('open', '');
+    _els.resultDetails.setAttribute('open', '');
   } else {
-    resultDetails.removeAttribute('open');
+    _els.resultDetails.removeAttribute('open');
   }
 }
