@@ -93,9 +93,9 @@ ok('resultScreen preserva todos los botones y elementos del DOM', () => {
   if (!document.getElementById('btn-new-check')) throw new Error('btn-new-check desapareció');
   if (!document.getElementById('btn-sos')) throw new Error('btn-sos desapareció');
 
-  // Verificar veredicto seguro
+  // Verificar veredicto seguro (título canónico de core/verdict.js)
   const title = document.getElementById('result-title').textContent;
-  if (!title.includes('seguro')) throw new Error(`Título no es seguro: ${title}`);
+  if (!title.includes('tranquilidad')) throw new Error(`Título no es el canónico de seguro: ${title}`);
   if (document.getElementById('btn-open-url').style.display === 'none') throw new Error('btn-open-url oculto en resultado seguro');
 
   tearDownDom();
