@@ -1,6 +1,6 @@
 /**
  * Centinela — Home Screen
- * Pantalla principal: input URL, historial, tips, onboarding
+ * Pantalla principal: input URL, historial y tips
  */
 import { getHistory, extractDomain, formatDate } from '../history.js';
 import { getRandomTip } from '../tips.js';
