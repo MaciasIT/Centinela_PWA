@@ -79,11 +79,18 @@ export function extractFirstValidUrl(text, validate = validateUrl) {
  * ocupada) y **siempre** ofrece subir una imagen, que es la salida que exige el
  * criterio de aceptación.
  *
- * @param {string} [errMessage] mensaje técnico original (getUserMedia / librería)
+ * @param {string|{name?: string, message?: string}} [err] error técnico original
+ *   (getUserMedia / librería). Acepta el objeto `Error` completo o una cadena.
  * @returns {string}
  */
-export function cameraUnavailableMessage(errMessage) {
-  const msg = String(errMessage || '');
+export function cameraUnavailableMessage(err) {
+  // La librería entrega un `Error` con `name` y `message` en inglés
+  // (p. ej. `NotFoundError: Requested device not found`). Hay que mirar AMBOS,
+  // no solo el mensaje: el nombre es lo que distingue «sin cámara» de «ocupada».
+  const isObject = err !== null && typeof err === 'object';
+  const name = isObject ? String(err.name || '') : '';
+  const rawMessage = isObject ? String(err.message || '') : String(err || '');
+  const msg = `${name} ${rawMessage}`;
 
   let lead;
   if (/permission|notallowed|denied|permiso/i.test(msg)) {

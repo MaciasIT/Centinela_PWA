@@ -86,6 +86,26 @@ ok('HU-11 AC-02: cualquier error desconocido también ofrece subir una imagen', 
   if (!/subir una imagen/i.test(msg)) throw new Error(`debe ofrecer subir una imagen: ${msg}`);
 });
 
+/* ── D-2: el CAMINO REAL — el objeto de error tal como lo entrega la librería ──
+   La librería no entrega una cadena «de laboratorio» con el nombre dentro: da un
+   Error con `name` y `message` en inglés. Estos tests usan ese objeto real. */
+
+ok('D-2 camino real: NotFoundError ("Requested device not found") → mensaje de «sin cámara»', () => {
+  const realErr = Object.assign(new Error('Requested device not found'), { name: 'NotFoundError' });
+  const msg = cameraUnavailableMessage(realErr);
+  if (!/no hemos encontrado ninguna cámara/i.test(msg)) {
+    throw new Error(`el nombre del error se perdió y cayó en el genérico: ${msg}`);
+  }
+});
+
+ok('D-2 camino real: NotReadableError ("Could not start video source") → mensaje de «cámara ocupada»', () => {
+  const realErr = Object.assign(new Error('Could not start video source'), { name: 'NotReadableError' });
+  const msg = cameraUnavailableMessage(realErr);
+  if (!/usada por otra aplicación/i.test(msg)) {
+    throw new Error(`el nombre del error se perdió y cayó en el genérico: ${msg}`);
+  }
+});
+
 /* ── HU-12 AC-02: varias direcciones → se comprueba la PRIMERA válida ── */
 
 ok('HU-12 AC-02: de un texto con varias direcciones devuelve la primera válida', () => {

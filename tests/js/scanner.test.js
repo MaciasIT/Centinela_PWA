@@ -8,7 +8,7 @@
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { parseHTML, Event } from 'linkedom';
-import { scanFromImage } from '../../js/scanner.js';
+import { scanFromImage, startScanner } from '../../js/scanner.js';
 import * as scannerScreen from '../../js/screens/scanner.js';
 
 const here = fileURLToPath(new URL('.', import.meta.url));
@@ -111,6 +111,38 @@ okAsync('HU-15 AC-03: cada intento usa un contenedor nuevo y lo limpia', async (
   if (state.ids[0] === state.ids[1]) throw new Error('los dos intentos compartieron contenedor (no aislados)');
   if (state.cleared !== 2) throw new Error('cada intento debe limpiarse (clear)');
   tearDownDom();
+});
+
+/* ── D-2: el CAMINO REAL de `startScanner` con el error tal cual lo entrega la
+   librería (no una cadena fabricada). Si el cableado vuelve a pasar solo
+   `err.message`, estos tests se ponen en rojo. ── */
+
+okAsync('D-2 camino real: startScanner propaga un NotFoundError como mensaje de «sin cámara»', async () => {
+  const realErr = Object.assign(new Error('Requested device not found'), { name: 'NotFoundError' });
+  class FakeLib { constructor() {} static async getCameras() { throw realErr; } }
+
+  let msg = '';
+  await startScanner('qr-reader', () => {}, (m) => { msg = m; }, FakeLib);
+  if (!/no hemos encontrado ninguna cámara/i.test(msg)) {
+    throw new Error(`el cableado perdió el nombre del error y cayó en el genérico: ${msg}`);
+  }
+});
+
+okAsync('D-2 camino real: startScanner propaga un NotReadableError como mensaje de «cámara ocupada»', async () => {
+  const realErr = Object.assign(new Error('Could not start video source'), { name: 'NotReadableError' });
+  class FakeLib {
+    constructor() {}
+    static async getCameras() { return [{ id: 'cam-1' }]; }
+    start() { return Promise.reject(realErr); }
+    stop() {}
+    clear() {}
+  }
+
+  let msg = '';
+  await startScanner('qr-reader', () => {}, (m) => { msg = m; }, FakeLib);
+  if (!/usada por otra aplicación/i.test(msg)) {
+    throw new Error(`el cableado perdió el nombre del error y cayó en el genérico: ${msg}`);
+  }
 });
 
 /* ── HU-11 AC-02: la pantalla muestra el estado y sus dos salidas ── */

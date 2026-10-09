@@ -17,15 +17,16 @@ let isRunning = false;
  * @param {string} containerId - ID del elemento contenedor
  * @param {function} onSuccess - Callback cuando detecta un QR (recibe decodedText)
  * @param {function} onError - Callback en caso de error fatal
+ * @param {typeof Html5Qrcode} [Impl] - implementación inyectable (tests)
  * @returns {Promise<void>}
  */
-export async function startScanner(containerId, onSuccess, onError) {
+export async function startScanner(containerId, onSuccess, onError, Impl = Html5Qrcode) {
     if (isRunning) return;
 
     try {
-        scanner = new Html5Qrcode(containerId, { verbose: false });
+        scanner = new Impl(containerId, { verbose: false });
 
-        const cameras = await Html5Qrcode.getCameras();
+        const cameras = await Impl.getCameras();
 
         if (!cameras || cameras.length === 0) {
             throw new Error('No se ha encontrado ninguna cámara en el dispositivo.');
@@ -72,7 +73,10 @@ export async function startScanner(containerId, onSuccess, onError) {
         isRunning = true;
     } catch (err) {
         // Mensaje llano que SIEMPRE ofrece subir una imagen (HU-11 AC-02).
-        if (onError) onError(cameraUnavailableMessage(err && err.message));
+        // Se pasa el error ENTERO (no solo `err.message`): el `name`
+        // (NotFoundError / NotReadableError) es lo que distingue el mensaje
+        // específico del genérico en el camino real (D-2).
+        if (onError) onError(cameraUnavailableMessage(err));
     }
 }
 
