@@ -49,15 +49,16 @@ self.addEventListener('fetch', (event) => {
     }
 });
 
-// Estrategia de caché para fuentes de Google (CSS y archivos woff2)
+/* Estrategia de caché para las fuentes autoalojadas (woff2 en assets/fonts).
+   Sin terceros: solo el propio origen. */
 registerRoute(
-    ({ url }) => url.origin === 'https://fonts.googleapis.com' || url.origin === 'https://fonts.gstatic.com',
+    ({ url, request }) => url.origin === self.location.origin && request.destination === 'font',
     new CacheFirst({
-        cacheName: 'google-fonts-cache',
+        cacheName: 'local-fonts-cache',
         plugins: [
             new ExpirationPlugin({
                 maxEntries: 10,
-                maxAgeSeconds: 30 * 24 * 60 * 60, // 30 días
+                maxAgeSeconds: 365 * 24 * 60 * 60, // 1 año
             }),
         ],
     })

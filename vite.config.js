@@ -38,7 +38,7 @@ export default defineConfig({
       injectRegister: null, // No inyectar registro automático, se maneja en js/app.js
       manifest: manifest,
       injectManifest: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,json,webmanifest}'],
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,json,webmanifest,woff2}'],
         // Evitar que el build del propio sw.js se meta en su caché
         globIgnores: ['sw.js', 'workbox-*.js'],
       },
