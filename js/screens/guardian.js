@@ -1,98 +1,97 @@
 /**
- * Centinela — Guardian Screen
- * Gestión del contacto de confianza y botón SOS
+ * Centinela — Ángel de la Guarda (HU-27)
+ *
+ * Un ÚNICO cableado del botón «Preguntar» (`bindSosButton`), invocado una sola
+ * vez desde app.js. Cierra F-5: antes había dos listeners sobre `#btn-sos`
+ * (uno en app.js y otro en el antiguo `bindGuardianActions`) y el segundo leía
+ * un objeto global que no existe, de modo que se abrían DOS conversaciones
+ * de WhatsApp, una de ellas sin enlace. Aquí no se registra ningún listener
+ * salvo por `bindSosButton`.
+ *
+ * El contacto vive en UN solo campo (Ajustes) y UNA sola clave de storage
+ * (HU-27 AC-02, cierra F-6).
  */
-const $ = (id) => document.getElementById(id);
+
 const GUARDIAN_KEY = 'centinela_guardian_phone';
 
-export function mount(container) {
-  initGuardian();
-  bindGuardianActions();
-}
-
-export function unmount() {
-  // no-op
-}
-
-export function initGuardian(els) {
-  const target = els || {
-    guardianPhone: $('guardian-phone'),
-  };
-  try {
-    const saved = localStorage.getItem(GUARDIAN_KEY);
-    if (saved && target.guardianPhone) target.guardianPhone.value = saved;
-  } catch {
-    // ignorar storage restringido
-  }
-}
-
+/**
+ * Texto del mensaje SOS con el enlace y el veredicto.
+ * @param {string} currentUrl
+ * @param {string} resultTitle
+ * @param {string} brandMsg
+ * @param {boolean} brandVisible
+ */
 export function buildSosMessage(currentUrl, resultTitle, brandMsg, brandVisible) {
   const brandInfo = brandVisible ? `\n🔍 Identidad: ${brandMsg}` : '';
   return `🛡️ *CENTINELA SOS* 👼\n\nHe analizado este enlace y la app me da un aviso. ¿Me puedes decir si es seguro entrar?\n\n🔗 *Enlace:* ${currentUrl}${brandInfo}\n⚠️ *Veredicto:* ${resultTitle}\n\n¡Gracias experto!`;
 }
 
+/** Guarda el contacto (clave única). */
 export function saveGuardianPhone(phone) {
   try {
-    localStorage.setItem(GUARDIAN_KEY, phone);
-    localStorage.setItem('centinela_guardian', phone);
+    localStorage.setItem(GUARDIAN_KEY, String(phone ?? '').trim());
   } catch {}
 }
 
+/** Lee el contacto; única fuente es la clave canónica. */
 export function loadGuardianPhone() {
   try {
-    return localStorage.getItem(GUARDIAN_KEY) || localStorage.getItem('centinela_guardian') || '';
+    return localStorage.getItem(GUARDIAN_KEY) || '';
   } catch {
     return '';
   }
 }
 
+/** Elimina el contacto. */
 export function clearGuardianPhone() {
   try {
     localStorage.removeItem(GUARDIAN_KEY);
-    localStorage.removeItem('centinela_guardian');
   } catch {}
 }
 
+/** Abre WhatsApp con el mensaje. Punto único de apertura (fácil de contar en tests). */
 export function openSosWhatsApp(phone, message) {
   if (!phone) return;
   window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
 }
 
-function bindGuardianActions() {
-  const els = {
-    btnSaveGuardian: $('btn-save-guardian'),
-    guardianPhone: $('guardian-phone'),
-    guardianStatus: $('guardian-status'),
-    btnSos: $('btn-sos'),
-    resultBrand: $('result-brand'),
-    brandMsg: $('brand-msg'),
-    resultTitle: $('result-title'),
+/**
+ * ÚNICO cableado del botón «Preguntar». app.js lo llama una sola vez.
+ * Devuelve una función de limpieza (quitar listener).
+ *
+ * @param {{ btnSos?: HTMLElement }} els
+ * @param {{
+ *   getUrl?: () => string,
+ *   getResultTitle?: () => string,
+ *   getBrandMsg?: () => string,
+ *   getBrandVisible?: () => boolean,
+ * }} [deps]
+ */
+export function bindSosButton(els, deps = {}) {
+  const btn = els && els.btnSos;
+  if (!btn) return () => {};
+
+  const handler = () => {
+    const phone = loadGuardianPhone();
+    if (!phone) return;
+    const message = buildSosMessage(
+      deps.getUrl?.() || '',
+      deps.getResultTitle?.() || '',
+      deps.getBrandMsg?.() || '',
+      deps.getBrandVisible?.() || false
+    );
+    openSosWhatsApp(phone, message);
   };
 
-  if (els.btnSaveGuardian) {
-    els.btnSaveGuardian.addEventListener('click', () => {
-      const phone = els.guardianPhone.value.trim().replace(/\D/g, '');
-      if (phone) {
-        localStorage.setItem(GUARDIAN_KEY, phone);
-        els.guardianStatus.textContent = '✅ Experto guardado';
-        setTimeout(() => (els.guardianStatus.textContent = ''), 3000);
-      } else {
-        els.guardianStatus.textContent = 'Introduce un número válido';
-      }
-    });
-  }
-
-  if (els.btnSos) {
-    els.btnSos.addEventListener('click', () => {
-      const phone = localStorage.getItem(GUARDIAN_KEY);
-      if (!phone) return;
-      const message = buildSosMessage(
-        window.__centinela?.currentUrl || '',
-        els.resultTitle?.textContent || '',
-        els.brandMsg?.textContent || '',
-        els.resultBrand?.style.display !== 'none'
-      );
-      openSosWhatsApp(phone, message);
-    });
-  }
+  btn.addEventListener('click', handler);
+  return () => btn.removeEventListener('click', handler);
 }
+
+/**
+ * Ciclo de vida de pantalla (router). No registra NINGÚN listener: el botón SOS
+ * se cablea una sola vez con `bindSosButton` (F-5). Se mantiene para conservar
+ * la firma que espera el router si algún día se registra como pantalla.
+ */
+export function mount() {}
+
+export function unmount() {}

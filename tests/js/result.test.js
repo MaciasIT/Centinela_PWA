@@ -47,6 +47,14 @@ function bootDom() {
           <summary class="result-details-toggle">Informe técnico detallado</summary>
           <div id="result-details-content" class="result-details-body"></div>
         </details>
+        <section id="result-help" class="result-help is-hidden">
+          <h3 class="result-help-title">Si es peligroso, pide ayuda</h3>
+          <p>Si has dado tus datos, avisa a tu banco. Llama gratis al <strong>017 (INCIBE)</strong> y te ayudan.</p>
+        </section>
+        <div id="result-guardian-hint" class="result-guardian-hint is-hidden">
+          <p>¿No estás seguro? Guarda el teléfono de tu experto en Ajustes y podrás preguntarle con un toque.</p>
+          <button id="btn-guardian-hint" class="btn btn-secondary btn-sm" type="button">Guardar mi experto</button>
+        </div>
         <div class="result-actions">
           <button id="btn-preview" class="btn btn-secondary">Vista Previa</button>
           <button id="btn-sos" class="btn btn-warning" style="display: none;">Preguntar</button>
@@ -93,9 +101,9 @@ ok('resultScreen preserva todos los botones y elementos del DOM', () => {
   if (!document.getElementById('btn-new-check')) throw new Error('btn-new-check desapareció');
   if (!document.getElementById('btn-sos')) throw new Error('btn-sos desapareció');
 
-  // Verificar veredicto seguro
+  // Verificar veredicto seguro (título canónico de core/verdict.js)
   const title = document.getElementById('result-title').textContent;
-  if (!title.includes('seguro')) throw new Error(`Título no es seguro: ${title}`);
+  if (!title.includes('tranquilidad')) throw new Error(`Título no es el canónico de seguro: ${title}`);
   if (document.getElementById('btn-open-url').style.display === 'none') throw new Error('btn-open-url oculto en resultado seguro');
 
   tearDownDom();
@@ -139,6 +147,73 @@ ok('resultScreen activa SOS cuando hay guardian configurado y resultado es dudos
   if (btnSos.style.display === 'none') throw new Error('btn-sos debería mostrarse con guardian y peligro');
 
   clearGuardianPhone();
+  tearDownDom();
+});
+
+ok('HU-28 AC-01: veredicto rojo muestra las referencias de ayuda (017 INCIBE)', () => {
+  bootDom();
+  clearGuardianPhone();
+  const container = document.getElementById('screen-result');
+  resultScreen.mount(container, {
+    result: { positives: 8, total: 75, suspicious: 2, url: 'https://phishing.com' },
+    url: 'https://phishing.com',
+  });
+  const help = document.getElementById('result-help');
+  if (help.style.display === 'none') throw new Error('result-help oculta con veredicto rojo');
+  if (!help.textContent.includes('017')) throw new Error('falta el 017 de INCIBE');
+  if (!/banco/i.test(help.textContent)) throw new Error('falta el consejo de avisar al banco');
+  tearDownDom();
+});
+
+ok('HU-28 AC-02: veredicto verde o amarillo NO muestran las referencias de ayuda', () => {
+  bootDom();
+  clearGuardianPhone();
+  const container = document.getElementById('screen-result');
+
+  resultScreen.mount(container, {
+    result: { positives: 0, total: 75, url: 'https://seguro.com' },
+    url: 'https://seguro.com',
+  });
+  if (document.getElementById('result-help').style.display !== 'none') throw new Error('result-help visible con verde');
+
+  resultScreen.mount(container, {
+    result: { positives: 0, total: 75, suspicious: 2, url: 'https://dudoso.com' },
+    url: 'https://dudoso.com',
+  });
+  if (document.getElementById('result-help').style.display !== 'none') throw new Error('result-help visible con amarillo');
+
+  tearDownDom();
+});
+
+ok('HU-27 AC-03: sin contacto y veredicto no verde se ofrece guardarlo', () => {
+  bootDom();
+  clearGuardianPhone();
+  const container = document.getElementById('screen-result');
+
+  resultScreen.mount(container, {
+    result: { positives: 0, total: 75, suspicious: 2, url: 'https://dudoso.com' },
+    url: 'https://dudoso.com',
+  });
+  const hint = document.getElementById('result-guardian-hint');
+  if (hint.style.display !== 'block') throw new Error('no se ofrece guardar el contacto con veredicto no verde');
+  if (!/Ajustes/.test(hint.textContent)) throw new Error('la oferta no dice dónde guardarlo');
+
+  // Con veredicto verde no se ofrece nada.
+  resultScreen.mount(container, {
+    result: { positives: 0, total: 75, url: 'https://seguro.com' },
+    url: 'https://seguro.com',
+  });
+  if (document.getElementById('result-guardian-hint').style.display !== 'none') throw new Error('oferta visible con verde');
+
+  // Con contacto guardado ya no se ofrece guardarlo.
+  saveGuardianPhone('34600112233');
+  resultScreen.mount(container, {
+    result: { positives: 0, total: 75, suspicious: 2, url: 'https://dudoso.com' },
+    url: 'https://dudoso.com',
+  });
+  if (document.getElementById('result-guardian-hint').style.display !== 'none') throw new Error('oferta visible con contacto ya guardado');
+  clearGuardianPhone();
+
   tearDownDom();
 });
 

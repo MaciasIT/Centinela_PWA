@@ -1,7 +1,63 @@
 /**
  * Centinela — Share Module
- * Compartir resultados y recibir enlaces compartidos (Web Share Target)
+ * Compartir resultados y recibir enlaces compartidos (Web Share Target).
+ * El veredicto que se comparte lo calcula core/verdict.js (misma tabla; sin reglas duplicadas, HU-02).
  */
+import { classify, verdictInfo } from './core/verdict.js';
+import { extractFirstValidUrl } from './core/entry.js';
+
+/**
+ * Construye el texto llano del veredicto para compartir (función pura, testeable).
+ * @param {string} url
+ * @param {object} result
+ * @returns {string}
+ */
+export function buildShareText(url, result) {
+    const verdict = classify(result);
+    const info = verdictInfo(verdict);
+    const emoji = info.icon;
+    const statusText = info.label.toUpperCase();
+    const detail = buildShareDetail(result, verdict);
+    return `${emoji} He comprobado este enlace con Centinela y es ${statusText}:\n\n${url}\n\n${detail}\n\n🛡️ Comprueba tus enlaces en: centinela-pwa.pages.dev`;
+}
+
+/** Contador para mostrar en el texto (no numérico → 0). */
+function toDisplayCount(v) {
+    const n = Number(v);
+    return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+/**
+ * Frase de detalle del texto compartido, ajustada al veredicto (INFO-3).
+ *
+ * - No habla de «analizadores» cuando no hay ninguna detección (total 0).
+ * - No llama «peligroso» a un veredicto «Dudoso».
+ * - Tono cercano y sin alarmar de más.
+ *
+ * @param {object} result
+ * @param {'safe'|'warning'|'danger'|'unchecked'} verdict
+ * @returns {string}
+ */
+function buildShareDetail(result, verdict) {
+    const malicious = toDisplayCount(result?.malicious ?? result?.positives);
+    const suspicious = toDisplayCount(result?.suspicious);
+    const total = toDisplayCount(result?.total);
+
+    if (verdict === 'danger') {
+        return `${malicious}/${total} analizadores de VirusTotal lo marcan como peligroso.`;
+    }
+    if (verdict === 'safe') {
+        return `Ninguno de los ${total} analizadores de VirusTotal ha visto nada raro.`;
+    }
+    if (verdict === 'unchecked') {
+        return 'No hemos podido completar el análisis, así que mejor no te fíes todavía.';
+    }
+    // «Dudoso»: o no hay análisis, o hay alguna pega pero nada que lo marque peligroso.
+    if (!total) {
+        return 'Todavía no hay ningún analizador que lo haya revisado.';
+    }
+    return `Algunos analizadores de VirusTotal le han puesto alguna pega (${malicious + suspicious} de ${total}).`;
+}
 
 /**
  * Comparte el resultado del análisis vía Web Share API o portapapeles
@@ -9,23 +65,8 @@
  * @param {object} result - Resultado del análisis
  */
 export async function shareResult(url, result) {
-    const isSafe = result.positives === 0;
-    const isDanger = result.positives > 3;
-    const isWarning = result.positives > 0 && result.positives <= 3;
-
-    let emoji, statusText;
-    if (isSafe) {
-        emoji = '✅';
-        statusText = 'SEGURO';
-    } else if (isDanger) {
-        emoji = '🚨';
-        statusText = 'PELIGROSO';
-    } else {
-        emoji = '⚠️';
-        statusText = 'SOSPECHOSO';
-    }
-
-    const shareText = `${emoji} He comprobado este enlace con Centinela y es ${statusText}:\n\n${url}\n\n${result.positives}/${result.total} motores de seguridad lo han marcado como peligroso.\n\n🛡️ Comprueba tus enlaces en: centinela-pwa.pages.dev`;
+    const statusText = verdictInfo(classify(result)).label.toUpperCase();
+    const shareText = buildShareText(url, result);
 
     // Intentar Web Share API (nativo en móvil)
     if (navigator.share) {
@@ -75,27 +116,64 @@ export async function copyToClipboard(text) {
 }
 
 /**
- * Comprueba si la app se abrió mediante Web Share Target (compartir desde otra app)
- * @returns {string|null} - URL compartida o null
+ * Confirma al usuario el resultado de compartir (HU-13 AC-02).
+ * Solo hay confirmación visible cuando se copió al portapapeles (el share nativo
+ * ya muestra su propia interfaz del sistema).
+ * @param {string} method
+ * @returns {string|null}
+ */
+export function shareConfirmation(method) {
+    if (method === 'clipboard' || method === 'clipboard-legacy') {
+        return 'Copiado. Ya puedes pegarlo en WhatsApp';
+    }
+    return null;
+}
+
+/**
+ * Interpreta los parámetros del Web Share Target (HU-12).
+ *
+ * Función PURA (no lee `window`): recibe la cadena de query y devuelve si había
+ * contenido compartido y cuál es el primer enlace válido. Es la que hace posible
+ * probar AC-01/AC-02/AC-03 sin abrir WhatsApp.
+ *
+ * @param {string} search cadena de query (p. ej. `?text=...`)
+ * @returns {{present: boolean, url: string|null, raw: string}}
+ */
+export function parseShareParams(search) {
+    const params = new URLSearchParams(search || '');
+    const raw = params.get('url') || params.get('text') || params.get('title') || '';
+
+    if (!raw) return { present: false, url: null, raw: '' };
+
+    return { present: true, url: extractFirstValidUrl(raw), raw };
+}
+
+/**
+ * Consume el Web Share Target al abrir la app: lee los parámetros, limpia la
+ * URL para no reprocesarlos y devuelve el enlace encontrado (si lo hay).
+ *
+ * @param {Window} [win] ventana (inyectable en tests)
+ * @returns {{present: boolean, url: string|null, raw: string}}
+ */
+export function consumeSharedTarget(win = (typeof window !== 'undefined' ? window : undefined)) {
+    if (!win) return { present: false, url: null, raw: '' };
+
+    const payload = parseShareParams(win.location && win.location.search);
+
+    if (payload.present) {
+        try { win.history.replaceState({}, '', win.location.pathname); } catch { /* sin historial */ }
+    }
+
+    return payload;
+}
+
+/**
+ * Comprueba si la app se abrió mediante Web Share Target y devuelve la URL
+ * compartida (compatibilidad: solo el enlace, o null).
+ * @returns {string|null}
  */
 export function checkSharedUrl() {
-    try {
-        const params = new URLSearchParams(window.location.search);
-        const sharedUrl = params.get('url') || params.get('text') || params.get('title') || null;
-
-        if (sharedUrl) {
-            // Limpiar los params de la URL para no procesarlos de nuevo
-            window.history.replaceState({}, '', window.location.pathname);
-
-            // Extraer URL del texto compartido (puede venir con texto alrededor)
-            const urlMatch = sharedUrl.match(/https?:\/\/[^\s]+/);
-            return urlMatch ? urlMatch[0] : sharedUrl.trim();
-        }
-
-        return null;
-    } catch {
-        return null;
-    }
+    return consumeSharedTarget().url;
 }
 
 /**

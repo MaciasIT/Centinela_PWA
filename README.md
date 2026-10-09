@@ -33,8 +33,6 @@ Ciberseguridad sin jerga. Sin informes técnicos. Solo un veredicto claro:
 | Dashboard estadísticas local | F2 | ✅ |
 | Navegación inferior: Inicio \| Estadísticas \| Historial \| Ajustes | F2-F3 | ✅ |
 | Sistema screens/partials + router | F3 | ✅ |
-| Store observable (`getState`, `subscribe`, `reset`) | F3 | ✅ |
-| Componentes reutilizables: button, dialog, toast, spinner, result-card | F3 | ✅ |
 | Pantalla Historial con filtros | F3 | ✅ |
 | Pantalla Configuración (guardian phone, borrado datos) | F3 | ✅ |
 | Motor reputación local (RDAP, entropía, TLDs riesgo, lista negra) | F4 | ✅ |
@@ -45,7 +43,7 @@ Ciberseguridad sin jerga. Sin informes técnicos. Solo un veredicto claro:
 
 - **Frontend:** HTML5 + CSS + JS ESM (Vite)
 - **Backend:** Cloudflare Worker (`worker/`)
-- **Motores:** VirusTotal v3, Google Safe Browsing, URLScan.io
+- **Motores:** VirusTotal v3 (única fuente de análisis)
 - **Reputación local:** RDAP, entropía, TLDs de alto riesgo, lista negra
 - **Preview:** WordPress mshots
 - **Despliegue:** Cloudflare Pages + GitHub Actions

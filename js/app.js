@@ -3,15 +3,19 @@
  * Orquestador de toda la aplicación
  */
 
-import { analyzeUrl, validateUrl, checkLocalReputation } from './api.js';
+import { analyzeUrl, validateUrl } from './api.js';
 import { scanFromImage } from './scanner.js';
-import { addToHistory, clearHistory } from './history.js';
+import { clearHistory } from './history.js';
 import { getRandomTip } from './tips.js';
-import { shareResult, checkSharedUrl, hapticFeedback } from './share.js';
-import { recordScan, renderStatsScreen } from './stats.js';
+import { shareResult, consumeSharedTarget, shareConfirmation, hapticFeedback } from './share.js';
+import { resolveQrText, SHARE_NO_LINK_MESSAGE } from './core/entry.js';
+import { renderStatsScreen } from './stats.js';
+import { recordScanOutcome } from './core/scan-record.js';
 import { register, navigate, bindNav } from './router.js';
+import { initTheme } from './core/theme.js';
 import * as homeScreen from './screens/home.js';
 import * as resultScreen from './screens/result.js';
+import * as loadingScreen from './screens/loading.js';
 import * as scannerScreen from './screens/scanner.js';
 import * as previewScreen from './screens/preview.js';
 import * as dialogScreen from './screens/dialog.js';
@@ -41,6 +45,7 @@ const els = {
     btnNewCheck: $('btn-new-check'),
     btnPreview: $('btn-preview'),
     btnSos: $('btn-sos'),
+    btnGuardianHint: $('btn-guardian-hint'),
     // Dialogs & Overlays
     btnClosePreview: $('btn-close-preview'),
     previewDialog: $('preview-dialog'),
@@ -104,26 +109,27 @@ function closeError() {
    ============================================ */
 async function analyzeCurrentUrl() {
     const text = els.urlInput?.value.trim();
-    if (!text) return;
+    if (!text) { showToast('Pega primero un enlace'); return; }
 
     const validation = validateUrl(text);
-    if (!validation.valid) { showError(validation.reason || 'Eso no parece un enlace web válido.'); return; }
+    if (!validation.valid) { showError(validation.reason || 'Esto no parece un enlace web.'); return; }
 
     currentUrl = validation.url;
     hapticFeedback('medium');
-    navigate('loading');
-
-    // Comprobación de reputación local
-    const local = await checkLocalReputation(currentUrl);
+    navigate('loading', { onRetry: () => analyzeCurrentUrl() });
 
     try {
         const result = await analyzeUrl(currentUrl);
         currentResult = result;
-        addToHistory(currentUrl, result);
-        recordScan(currentUrl, result.positives === 0 ? 'safe' : result.positives > 3 ? 'dangerous' : 'suspicious');
-        navigate('result', { result, url: currentUrl, local: result.local || local });
-        if (result.positives === 0) hapticFeedback('success');
-        else if (result.positives > 3) hapticFeedback('danger');
+
+        // ÚNICO cableado (HU-02): clasificar → historial → estadísticas, con el
+        // mismo veredicto en los tres sitios. Vive en core/scan-record.js para
+        // que el test de contrato lo ejercite de verdad (no una réplica a mano).
+        const verdict = recordScanOutcome(currentUrl, result);
+
+        navigate('result', { result, url: currentUrl, local: result.local });
+        if (verdict === 'safe') hapticFeedback('success');
+        else if (verdict === 'danger') hapticFeedback('danger');
         else hapticFeedback('warning');
     } catch (err) {
         navigate('main');
@@ -144,15 +150,25 @@ function updateCheckButton() {
 async function openScanner() {
     navigate('scanner', {
         onScan: (decodedText) => {
+            // HU-11 AC-01/AC-03: resolver el QR. Si trae enlace → comprobar;
+            // si no → aviso llano y NINGUNA consulta.
+            const resolved = resolveQrText(decodedText);
+            if (resolved.status !== 'ok') {
+                showToast(resolved.message);
+                return;
+            }
             hapticFeedback('success');
             navigate('main');
-            if (els.urlInput) els.urlInput.value = decodedText;
+            if (els.urlInput) els.urlInput.value = resolved.url;
             updateCheckButton();
-            const validation = validateUrl(decodedText);
-            if (validation.valid) setTimeout(() => analyzeCurrentUrl(), 300);
-            else showToast('QR leído. Comprueba si el contenido es un enlace web.');
+            setTimeout(() => analyzeCurrentUrl(), 300);
         },
-        onError: (errorMsg) => { navigate('main'); showError(errorMsg); }
+        // AC-02: salidas del estado «cámara no disponible».
+        onUpload: () => els.fileInput?.click(),
+        onPaste: () => {
+            navigate('main');
+            setTimeout(() => els.urlInput?.focus(), 0);
+        },
     });
 }
 
@@ -166,12 +182,16 @@ async function handleImageUpload(file) {
     showToast('Buscando código QR en la imagen...');
     try {
         const result = await scanFromImage(file);
-        if (els.urlInput) els.urlInput.value = result;
+        const resolved = resolveQrText(result);
+        if (resolved.status !== 'ok') {
+            showError(resolved.message);
+            return;
+        }
+        if (els.urlInput) els.urlInput.value = resolved.url;
         updateCheckButton();
         hapticFeedback('success');
         showToast('¡Código QR encontrado!');
-        const validation = validateUrl(result);
-        if (validation.valid) setTimeout(() => analyzeCurrentUrl(), 500);
+        setTimeout(() => analyzeCurrentUrl(), 500);
     } catch (err) {
         showError(err.message || 'No se pudo leer el código QR de la imagen.');
     }
@@ -210,7 +230,8 @@ function initEventListeners() {
     els.btnShare?.addEventListener('click', async () => {
         if (currentUrl && currentResult) {
             const result = await shareResult(currentUrl, currentResult);
-            if (result.method === 'clipboard' || result.method === 'clipboard-legacy') showToast('Resultado copiado al portapapeles');
+            const confirmation = shareConfirmation(result.method);
+            if (confirmation) showToast(confirmation);
         }
     });
     els.btnNewCheck?.addEventListener('click', () => {
@@ -224,16 +245,7 @@ function initEventListeners() {
         btnPreview: els.btnPreview,
         previewTimeout: null,
     }));
-    els.btnSos?.addEventListener('click', () => {
-        const phone = guardianScreen.loadGuardianPhone();
-        if (!phone) return;
-        const brandVisible = $('result-brand')?.style.display !== 'none';
-        const brandMsg = $('brand-msg')?.textContent || '';
-        const resultTitle = $('result-title')?.textContent || '';
-        const message = guardianScreen.buildSosMessage(currentUrl, resultTitle, brandMsg, brandVisible);
-        guardianScreen.openSosWhatsApp(phone, message);
-        hapticFeedback('medium');
-    });
+    els.btnGuardianHint?.addEventListener('click', () => navigate('settings'));
 
     // --- Dialogs ---
     dialogScreen.bindInfoDialog({
@@ -255,11 +267,16 @@ function initEventListeners() {
         });
     });
 
-    // --- Guardian ---
-    guardianScreen.initGuardian({
-        guardianPhone: $('guardian-phone'),
-    });
-    guardianScreen.mount();
+    // --- Ángel de la Guarda (HU-27): UN solo cableado del botón «Preguntar» (F-5) ---
+    guardianScreen.bindSosButton(
+        { btnSos: $('btn-sos') },
+        {
+            getUrl: () => currentUrl,
+            getResultTitle: () => $('result-title')?.textContent || '',
+            getBrandMsg: () => $('brand-msg')?.textContent || '',
+            getBrandVisible: () => $('result-brand')?.style.display !== 'none',
+        }
+    );
 
     // --- Error Dialog ---
     els.btnCloseError?.addEventListener('click', closeError);
@@ -310,12 +327,21 @@ function init() {
     register('settings', { mount: settingsScreen.mount, unmount: settingsScreen.unmount });
     register('stats', { mount: (container) => renderStatsScreen($('stats-container')) });
     register('result', { mount: resultScreen.mount, unmount: resultScreen.unmount });
+    register('loading', { mount: loadingScreen.mount, unmount: loadingScreen.unmount });
     register('scanner', { mount: scannerScreen.mount, unmount: scannerScreen.unmount });
 
     bindNav('.nav-btn[data-screen="main"]', 'main');
     bindNav('.nav-btn[data-screen="stats"]', 'stats');
     bindNav('.nav-btn[data-screen="history"]', 'history');
     bindNav('.nav-btn[data-screen="settings"]', 'settings');
+
+    // HU-25 AC-03: pulsar una entrada del historial vuelve a comprobar su enlace.
+    historyScreen.setRecheckHandler((url) => {
+        if (els.urlInput) els.urlInput.value = url;
+        updateCheckButton();
+        navigate('main');
+        setTimeout(() => analyzeCurrentUrl(), 300);
+    });
 
     registerServiceWorker();
 
@@ -324,15 +350,26 @@ function init() {
     homeScreen.renderHistory();
     initEventListeners();
 
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('action') === 'scan') { openScanner(); }
-    const sharedUrl = checkSharedUrl();
-    if (sharedUrl) {
-        els.urlInput.value = sharedUrl;
+    // HU-12 — Web Share Target: si venimos de compartir desde WhatsApp, la
+    // comprobación arranca sola (AC-01/AC-02); si había texto sin enlace, aviso
+    // llano en la portada (AC-03). Si no, atendemos el acceso directo «Escanear QR».
+    const shared = consumeSharedTarget();
+    if (shared.url) {
+        els.urlInput.value = shared.url;
         updateCheckButton();
-        setTimeout(() => analyzeCurrentUrl(), 500);
+        setTimeout(() => analyzeCurrentUrl(), 300);
+    } else if (shared.present) {
+        showToast(SHARE_NO_LINK_MESSAGE);
+    } else {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('action') === 'scan') { openScanner(); }
     }
 }
+
+// Aplica el tema elegido (o el del sistema) lo antes posible, en cuanto el
+// módulo se evalúa. El CSS ya trae el claro por defecto y respeta
+// `prefers-color-scheme`, así que sin JavaScript la app sigue viéndose bien.
+initTheme();
 
 // Arrancar cuando el DOM esté listo
 if (document.readyState === 'loading') {

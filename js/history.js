@@ -1,7 +1,10 @@
 /**
  * Centinela — Historial de Comprobaciones
- * Gestión del historial en localStorage
+ * Gestión del historial en localStorage.
+ * El veredicto guardado lo calcula SIEMPRE core/verdict.js (misma tabla que la
+ * pantalla de resultado y las estadísticas; ninguna regla duplicada, HU-02).
  */
+import { classify } from './core/verdict.js';
 
 const STORAGE_KEY = 'centinela_history';
 const MAX_ITEMS = 30;
@@ -20,9 +23,15 @@ export function getHistory() {
 }
 
 /**
- * Guarda una entrada en el historial
+ * Guarda una entrada en el historial.
+ *
+ * Devuelve la entrada guardada, o `null` si se descartó por ser un reescaneo
+ * duplicado de la misma URL en menos de 5 min. Ese `null` es lo que permite a
+ * `core/scan-record.js` mantener historial y estadísticas contando lo mismo (H-2).
+ *
  * @param {string} url
- * @param {object} result - Resultado del análisis { positives, total, status }
+ * @param {object} result - Resultado del análisis { positives, suspicious, total }
+ * @returns {object|null}
  */
 export function addToHistory(url, result) {
     try {
@@ -30,8 +39,10 @@ export function addToHistory(url, result) {
         const entry = {
             id: Date.now(),
             url: url,
-            status: result.positives > 3 ? 'danger' : result.positives > 0 ? 'warning' : 'safe',
+            status: classify(result),
             positives: result.positives,
+            suspicious: result.suspicious,
+            timeout: result.timeout,
             total: result.total,
             date: new Date().toISOString(),
         };
@@ -42,13 +53,13 @@ export function addToHistory(url, result) {
             h => h.url === url && new Date(h.date).getTime() > fiveMinAgo
         );
 
-        if (!isDuplicate) {
-            history.unshift(entry);
-            if (history.length > MAX_ITEMS) {
-                history.length = MAX_ITEMS;
-            }
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
+        if (isDuplicate) return null;
+
+        history.unshift(entry);
+        if (history.length > MAX_ITEMS) {
+            history.length = MAX_ITEMS;
         }
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
 
         return entry;
     } catch {

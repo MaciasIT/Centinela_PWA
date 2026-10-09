@@ -1,328 +1,324 @@
 /**
- * Centinela — Cloudflare Worker Backend
- * Proxy multi-fuente: VirusTotal → Google Safe Browsing → URLScan.io
- * Con CORS restrictivo y rate limiting básico
+ * Centinela — Cloudflare Worker (v2)
+ *
+ * Proxy de veredicto con UNA sola fuente declarada: **VirusTotal** (decisión 1A).
+ * Google Safe Browsing y URLScan.io se han retirado por completo (eran ramas
+ * muertas en producción: la clave de GSB nunca estuvo configurada).
+ *
+ * ── Orden de comprobación de `POST /api/scan` (arquitectura §5.3.1) ──
+ *   CORS → Content-Type → freno de inundación por IP (binding) → tamaño del
+ *   cuerpo → lectura/parseo → validación → cuota global exacta (DO `QuotaGuard`)
+ *   → VirusTotal
+ *
+ * El freno por IP y el rechazo por tamaño van ANTES de leer el cuerpo (hallazgo
+ * H-3 de la revisión de seguridad de la Tanda 3a): ningún camino de lectura o
+ * parseo queda sin pasar por un control.
+ *
+ * ── AVISO IMPORTANTE SOBRE EL RATE LIMITING ─────────────────────────
+ * El binding `SCAN_RATE_LIMITER` ([[ratelimits]], 30/60 s por IP) **NO es un
+ * contador exacto**: es *permissive* y de consistencia eventual (verificado:
+ * 17 peticiones sobre un límite de 4 → 0 bloqueos). **NO garantiza el techo de
+ * cuota de VirusTotal.** Su ÚNICA función es evitar que un único actor acapare
+ * (freno de inundación). El techo de cuota (4/min · 500/día) lo garantiza el
+ * Durable Object `QuotaGuard`, que sí cuenta. Que nadie vuelva a creer que el
+ * binding protege la cuota.
+ *
+ * Además, con wrangler 3 el binding se descarta EN SILENCIO en el despliegue.
+ * Por eso existe `worker/scripts/check-bindings.mjs`, que hace FALLAR el
+ * pipeline si el binding no llega (ver `.github/workflows/ci.yml`).
  */
 
-const ALLOWED_ORIGIN_REGEX = /^https:\/\/(centinela-pwa\.pages\.dev|.*\.pages\.dev)$|^http:\/\/localhost(:\d+)?$|^http:\/\/127\.0\.0\.1(:\d+)?$/;
+import pkg from '../../package.json' with { type: 'json' };
+import { validateUrl, normalizeUrl, MAX_BODY_BYTES, ERROR_MESSAGES } from './validation.js';
+import { checkVirusTotal, UpstreamError, SOURCE } from './virustotal.js';
+import { QuotaGuard, QUOTA_INSTANCE_NAME } from './quota-guard.js';
+import { checkLocalReputation } from './reputation.js';
 
-const CORS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
-  'Access-Control-Max-Age': '86400',
+// El Durable Object debe estar exportado desde el módulo principal del Worker.
+export { QuotaGuard };
+
+const APP_VERSION = pkg.version;
+
+/* ── CORS real: lista blanca explícita, sin comodín ni regex laxa ─── */
+
+const DEFAULT_ALLOWED_ORIGINS = [
+  'https://centinela-pwa.pages.dev',
+  'http://localhost:5173',
+  'http://localhost:8787',
+];
+
+/**
+ * Único patrón admitido más allá de la lista: los *preview deployments* de
+ * Cloudflare Pages, cuyo subdominio es un hash. Anclado y estricto a propósito
+ * (nada de `.*`): `https://<hash>.centinela-pwa.pages.dev`.
+ */
+const PREVIEW_ORIGIN = /^https:\/\/[a-z0-9][a-z0-9-]*\.centinela-pwa\.pages\.dev$/;
+
+/** Lista blanca efectiva: `ALLOWED_ORIGINS` (env) o la de producción/dev por defecto. */
+export function allowedOrigins(env) {
+  const raw = env && typeof env.ALLOWED_ORIGINS === 'string' ? env.ALLOWED_ORIGINS : '';
+  const list = raw.split(',').map((s) => s.trim()).filter(Boolean);
+  return list.length > 0 ? list : DEFAULT_ALLOWED_ORIGINS;
+}
+
+export function isAllowedOrigin(origin, env) {
+  if (!origin) return false;
+  if (allowedOrigins(env).includes(origin)) return true;
+  return PREVIEW_ORIGIN.test(origin);
+}
+
+/* ── Cabeceras ───────────────────────────────────────────────────── */
+
+/** Cabeceras de seguridad presentes en TODA respuesta del Worker (§5.2, HU-32). */
+const SECURITY_HEADERS = {
+  'X-Content-Type-Options': 'nosniff',
+  'Referrer-Policy': 'no-referrer',
+  // camera=() es correcto AQUÍ: el Worker solo sirve JSON. El sitio de Pages
+  // lleva camera=(self) porque sí usa la cámara para el escáner QR (RC-01).
+  'Permissions-Policy': 'geolocation=(), microphone=(), camera=()',
+  'Cache-Control': 'no-store',
+  Vary: 'Origin',
 };
-const JSON_HEADERS = { 'Content-Type': 'application/json', ...CORS };
+
+function corsHeaders(origin) {
+  return {
+    'Access-Control-Allow-Origin': origin,
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Max-Age': '86400',
+  };
+}
+
+function jsonResponse(status, body, origin, extraHeaders) {
+  const headers = { 'Content-Type': 'application/json; charset=utf-8', ...SECURITY_HEADERS };
+  if (origin) Object.assign(headers, corsHeaders(origin));
+  if (extraHeaders) Object.assign(headers, extraHeaders);
+  return new Response(JSON.stringify(body), { status, headers });
+}
+
+function errorResponse(status, code, origin, extraHeaders) {
+  return jsonResponse(
+    status,
+    { error: { code, message: ERROR_MESSAGES[code] || ERROR_MESSAGES.INTERNAL } },
+    origin,
+    extraHeaders
+  );
+}
+
+/* ── Cuota global exacta (DO `QuotaGuard`) ───────────────────────── */
 
 /**
- * Codifica una cadena UTF-8 en Base64URL segura para VirusTotal v3 sin relleno (=)
+ * Pide un token de cuota al DO global. Si el binding no estuviera declarado,
+ * NO se bloquea la app (fail-open): el fallo silencioso lo hace imposible el
+ * gate de CI (`scripts/check-bindings.mjs`), no el runtime.
  */
-function safeBase64UrlEncode(str) {
-  const utf8Bytes = new TextEncoder().encode(str);
-  let binary = "";
-  for (let i = 0; i < utf8Bytes.byteLength; i++) {
-    binary += String.fromCharCode(utf8Bytes[i]);
+async function acquireQuota(env) {
+  const ns = env && env.QUOTA_GUARD;
+  if (!ns || typeof ns.idFromName !== 'function' || typeof ns.get !== 'function') {
+    return { allowed: true, retryAfter: 0, enforced: false };
   }
-  return btoa(binary)
-    .replace(/=/g, "")
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_");
+  const id = ns.idFromName(QUOTA_INSTANCE_NAME);
+  const stub = ns.get(id);
+  const res = await stub.fetch(`https://quota-guard/${QUOTA_INSTANCE_NAME}`);
+  const data = await res.json();
+  return { allowed: !!data.allowed, retryAfter: data.retryAfter || 0, enforced: true };
 }
+
+/* ── Freno de inundación por IP (binding, best-effort) ───────────── */
+
+async function ipFloodBrake(request, env) {
+  const limiter = env && env.SCAN_RATE_LIMITER;
+  if (!limiter || typeof limiter.limit !== 'function') return true;
+  const key = request.headers.get('cf-connecting-ip') || 'desconocida';
+  const { success } = await limiter.limit({ key });
+  return success !== false;
+}
+
+/* ── Tamaño del cuerpo ───────────────────────────────────────────── */
 
 /**
- * Extrae el dominio + path de una URL (sin protocolo)
+ * ¿El `Content-Length` DECLARADO supera el máximo? Permite rechazar por la
+ * cabecera ANTES de bufferizar el cuerpo (hallazgo H-3). Si el cliente miente o
+ * usa chunked sin longitud, queda el backstop de `rawBody.length` tras leer.
  */
-function extractHostAndPath(urlStr) {
-  const u = new URL(urlStr);
-  return u.hostname + u.pathname;
+function declaredBodyTooLarge(request) {
+  const raw = request.headers.get('Content-Length');
+  if (!raw) return false;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > MAX_BODY_BYTES;
 }
 
-// ── FUENTE 1: VirusTotal ──────────────────────────────────────────
-
-async function checkVirusTotal(targetUrl, apiKey) {
-  if (!apiKey) throw new Error("VT_API_KEY not configured");
-
-  const encodedUrl = safeBase64UrlEncode(targetUrl);
-  const vtOptions = {
-    headers: {
-      "x-apikey": apiKey,
-      "Accept": "application/json"
-    }
-  };
-
-  // Intentar informe en caché
-  let vtResponse = await fetch(
-    `https://www.virustotal.com/api/v3/urls/${encodedUrl}`,
-    vtOptions
-  );
-
-  // 404 = URL nunca analizada → forzar escaneo
-  if (vtResponse.status === 404) {
-    const formData = new URLSearchParams();
-    formData.append("url", targetUrl);
-
-    const scanResponse = await fetch("https://www.virustotal.com/api/v3/urls", {
-      method: "POST",
-      headers: {
-        "x-apikey": apiKey,
-        "Content-Type": "application/x-www-form-urlencoded"
-      },
-      body: formData.toString()
-    });
-
-    if (!scanResponse.ok) {
-      throw new Error(`VT scan submit failed: ${scanResponse.status}`);
-    }
-
-    const scanData = await scanResponse.json();
-    const analysisId = scanData.data.id;
-    vtResponse = await fetch(
-      `https://www.virustotal.com/api/v3/analyses/${analysisId}`,
-      vtOptions
-    );
-  }
-
-  if (!vtResponse.ok) {
-    throw new Error(`VT failed: ${vtResponse.status}`);
-  }
-
-  const data = await vtResponse.json();
-  return { source: "virustotal", data };
-}
-
-// ── FUENTE 2: Google Safe Browsing ────────────────────────────────
-
-async function checkGoogleSafeBrowsing(targetUrl, apiKey) {
-  if (!apiKey) throw new Error("GSB_API_KEY not configured");
-
-  const gsbBody = {
-    client: { clientId: "centinela-pwa", clientVersion: "2.2.0" },
-    threatInfo: {
-      threatTypes: [
-        "MALWARE",
-        "SOCIAL_ENGINEERING",
-        "UNWANTED_SOFTWARE",
-        "POTENTIALLY_HARMFUL_APPLICATION"
-      ],
-      platformTypes: ["ANY_PLATFORM"],
-      threatEntryTypes: ["URL"],
-      threatEntries: [{ url: targetUrl }]
-    }
-  };
-
-  const gsbResponse = await fetch(
-    `https://safebrowsing.googleapis.com/v4/threatMatches:find?key=${apiKey}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(gsbBody)
-    }
-  );
-
-  if (!gsbResponse.ok) {
-    throw new Error(`GSB failed: ${gsbResponse.status}`);
-  }
-
-  const gsbData = await gsbResponse.json();
-
-  // GSB devuelve {} si no hay amenazas, o {matches: [...]} si las hay
-  const threats = gsbData.matches || [];
-  return {
-    source: "google_safebrowsing",
-    data: {
-      safe: threats.length === 0,
-      threats: threats.map(m => ({
-        threatType: m.threatType,
-        platformType: m.platformType
-      }))
-    }
-  };
-}
-
-// ── FUENTE 3: URLScan.io (submission-only, async) ─────────────────
-
-async function checkUrlScan(targetUrl) {
-  const scanResponse = await fetch("https://urlscan.io/api/v1/scan/", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "API-Key": "", // URLScan funciona sin API key en tier gratuito (rate limit 50/día)
-    },
-    body: JSON.stringify({
-      url: targetUrl,
-      visibility: "unlisted",
-      tags: ["centinela-pwa"]
-    })
-  });
-
-  if (!scanResponse.ok) {
-    throw new Error(`URLScan submit failed: ${scanResponse.status}`);
-  }
-
-  const scanData = await scanResponse.json();
-  const scanUuid = scanData.uuid;
-
-  // Esperar hasta 15s el resultado (poll cada 2s)
-  const maxAttempts = 7;
-  for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    await new Promise(r => setTimeout(r, 2000));
-
-    const resultResponse = await fetch(
-      `https://urlscan.io/api/v1/result/${scanUuid}/`
-    );
-
-    if (resultResponse.ok) {
-      const resultData = await resultResponse.json();
-      return {
-        source: "urlscan",
-        data: {
-          uuid: scanUuid,
-          url: targetUrl,
-          verdicts: resultData.verdicts || {},
-          score: resultData.verdicts?.overall?.score ?? null,
-          page: resultData.page ? {
-            url: resultData.page.url,
-            domain: resultData.page.domain,
-            ip: resultData.page.ip,
-          } : null,
-          resultUrl: `https://urlscan.io/result/${scanUuid}/`
-        }
-      };
-    }
-
-    if (resultResponse.status !== 404 && resultResponse.status !== 410) {
-      // Error real, no "aún no listo"
-      throw new Error(`URLScan result fetch failed: ${resultResponse.status}`);
-    }
-  }
-
-  // Timeout: devolver el UUID para consulta manual
-  return {
-    source: "urlscan",
-    data: {
-      uuid: scanUuid,
-      url: targetUrl,
-      pending: true,
-      resultUrl: `https://urlscan.io/result/${scanUuid}/`
-    }
-  };
-}
-
-// ── Orquestador multi-fuente ──────────────────────────────────────
-
-async function scanUrl(targetUrl, env) {
-  const results = [];
-  const errors = [];
-
-  // 1. VirusTotal (primario)
-  try {
-    const vtResult = await checkVirusTotal(targetUrl, env.VIRUSTOTAL_API_KEY);
-    results.push(vtResult);
-  } catch (e) {
-    errors.push({ source: "virustotal", error: e.message });
-  }
-
-  // 2. Google Safe Browsing (fallback #1)
-  if (env.GSB_API_KEY) {
-    try {
-      const gsbResult = await checkGoogleSafeBrowsing(targetUrl, env.GSB_API_KEY);
-      results.push(gsbResult);
-    } catch (e) {
-      errors.push({ source: "google_safebrowsing", error: e.message });
-    }
-  }
-
-  // 3. URLScan.io (fallback #2 — solo si todo lo demás falló)
-  if (results.length === 0) {
-    try {
-      const urlscanResult = await checkUrlScan(targetUrl);
-      results.push(urlscanResult);
-    } catch (e) {
-      errors.push({ source: "urlscan", error: e.message });
-    }
-  }
-
-  if (results.length === 0) {
-    throw new Error(`Todas las fuentes fallaron: ${errors.map(e => `${e.source}(${e.error})`).join(", ")}`);
-  }
-
-  return { results, errors: errors.length > 0 ? errors : undefined };
-}
-
-// ── Worker entrypoint ─────────────────────────────────────────────
-
-const localCache = new Map();
+/* ── Entrypoint ──────────────────────────────────────────────────── */
 
 export default {
-  async fetch(request, env, ctx) {
+  async fetch(request, env) {
     const url = new URL(request.url);
+    const origin = request.headers.get('Origin');
+    const originOk = isAllowedOrigin(origin, env);
+    const corsOrigin = originOk ? origin : null;
 
+    // 1. Preflight. Origen no permitido → 403 sin cabeceras CORS.
     if (request.method === 'OPTIONS') {
-      return new Response(null, { headers: CORS });
-    }
-
-    if (request.method === 'GET' && url.pathname === '/health') {
-      return new Response(JSON.stringify({ status: 'ok', timestamp: new Date().toISOString(), version: '2.4.0' }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json', ...CORS },
+      if (!originOk) {
+        return new Response(null, { status: 403, headers: { Vary: 'Origin' } });
+      }
+      return new Response(null, {
+        status: 204,
+        headers: { ...SECURITY_HEADERS, ...corsHeaders(origin) },
       });
     }
 
+    // 2. Origen no permitido en una petición real → 403 antes de gastar cuota.
+    //    Nota honesta: CORS es un control del NAVEGADOR, no autenticación; un
+    //    cliente no-navegador puede falsificar `Origin`. La protección real
+    //    contra abuso es la validación + el rate limiting + la cuota.
+    if (origin && !originOk && url.pathname.startsWith('/api/')) {
+      return errorResponse(403, 'FORBIDDEN_ORIGIN', null);
+    }
+
+    if (request.method === 'GET' && url.pathname === '/health') {
+      return jsonResponse(
+        200,
+        { status: 'ok', timestamp: new Date().toISOString(), version: APP_VERSION },
+        corsOrigin
+      );
+    }
+
     if (request.method === 'POST' && url.pathname === '/api/scan') {
-      try {
-        const body = await request.json();
-        const targetUrl = body.url;
-
-        if (!targetUrl) {
-          return new Response(JSON.stringify({ error: 'Missing URL' }), { status: 400, headers: JSON_HEADERS });
-        }
-
-        try {
-          new URL(targetUrl);
-        } catch (_) {
-          return new Response(
-            JSON.stringify({ error: 'La URL proporcionada no es válida' }),
-            { status: 400, headers: JSON_HEADERS }
-          );
-        }
-
-        const scanResult = await scanUrl(targetUrl, env);
-
-        return new Response(JSON.stringify(scanResult), {
-          status: 200,
-          headers: JSON_HEADERS
-        });
-
-      } catch (err) {
-        return new Response(JSON.stringify({ error: err.message }), {
-          status: 500,
-          headers: JSON_HEADERS
-        });
-      }
+      return handleScan(request, env, corsOrigin);
     }
 
     if (request.method === 'POST' && url.pathname === '/api/local-check') {
-      try {
-        const { url: targetUrl } = await request.json();
-        if (!targetUrl) return new Response(JSON.stringify({ error: 'Missing URL' }), { status: 400, headers: JSON_HEADERS });
-        try { new URL(targetUrl); } catch {
-          return new Response(JSON.stringify({ error: 'La URL proporcionada no es válida' }), { status: 400, headers: JSON_HEADERS });
-        }
-
-        const cached = localCache.get(targetUrl);
-        if (cached && cached.expires > Date.now()) {
-          return new Response(JSON.stringify({ cached: true, ...cached.data }), { status: 200, headers: JSON_HEADERS });
-        }
-
-        const result = await checkLocalReputation(targetUrl, env);
-        const payload = { cached: false, ...result };
-        localCache.set(targetUrl, { data: payload, expires: Date.now() + 24 * 60 * 60 * 1000 });
-        return new Response(JSON.stringify(payload), { status: 200, headers: JSON_HEADERS });
-      } catch (err) {
-        return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: JSON_HEADERS });
-      }
+      return handleLocalCheck(request, env, corsOrigin);
     }
 
-    return new Response('Not found', { status: 404, headers: CORS });
+    return new Response('Not found', { status: 404, headers: { ...SECURITY_HEADERS } });
   },
 };
+
+/* ── POST /api/scan ──────────────────────────────────────────────── */
+
+async function handleScan(request, env, corsOrigin) {
+  // Validación de la petición ANTES de gastar cuota (HU-31, NFR-S1).
+  const contentType = (request.headers.get('Content-Type') || '').toLowerCase();
+  if (!contentType.includes('application/json')) {
+    return errorResponse(415, 'INVALID_JSON', corsOrigin);
+  }
+
+  // Freno de inundación por IP (binding). NO protege la cuota: ver cabecera.
+  // Va ANTES de leer el cuerpo (H-3): un actor en inundación se corta sin que
+  // lleguemos a bufferizar y parsear su petición.
+  if (!(await ipFloodBrake(request, env))) {
+    return errorResponse(429, 'RATE_LIMITED', corsOrigin);
+  }
+
+  // Tamaño declarado: se rechaza por cabecera, sin leer el cuerpo (H-3).
+  if (declaredBodyTooLarge(request)) {
+    return errorResponse(413, 'INVALID_JSON', corsOrigin);
+  }
+
+  let rawBody;
+  try {
+    rawBody = await request.text();
+  } catch {
+    return errorResponse(400, 'INVALID_JSON', corsOrigin);
+  }
+  if (rawBody.length > MAX_BODY_BYTES) {
+    return errorResponse(413, 'INVALID_JSON', corsOrigin);
+  }
+
+  let body;
+  try {
+    body = JSON.parse(rawBody);
+  } catch {
+    return errorResponse(400, 'INVALID_JSON', corsOrigin);
+  }
+
+  const checked = validateUrl(body && body.url);
+  if (!checked.ok) {
+    return errorResponse(checked.code === 'URL_TOO_LONG' ? 414 : 400, checked.code, corsOrigin);
+  }
+
+  // Normalización canónica (RC-04): el mismo destino no consume cuota dos veces.
+  // Conserva el esquema original del usuario (C-1): no se analiza otra variante.
+  const targetUrl = normalizeUrl(checked.url) || checked.url;
+
+  // Techo global EXACTO de cuota (DO `QuotaGuard`).
+  const quota = await acquireQuota(env);
+  if (!quota.allowed) {
+    return errorResponse(503, 'QUOTA_EXCEEDED', corsOrigin, {
+      'Retry-After': String(quota.retryAfter || 60),
+    });
+  }
+
+  try {
+    const result = await checkVirusTotal(targetUrl, env && env.VIRUSTOTAL_API_KEY);
+    return jsonResponse(200, { results: [result], source: SOURCE, version: APP_VERSION }, corsOrigin);
+  } catch (err) {
+    if (err instanceof UpstreamError && err.code === 'QUOTA_EXCEEDED') {
+      return errorResponse(503, 'QUOTA_EXCEEDED', corsOrigin, { 'Retry-After': '60' });
+    }
+    // El mensaje del proveedor NUNCA se filtra (NFR-S2).
+    return errorResponse(502, 'UPSTREAM_UNAVAILABLE', corsOrigin);
+  }
+}
+
+/* ── POST /api/local-check ───────────────────────────────────────── */
+
+/**
+ * NOTA DE ALCANCE (T3a/T3c): la arquitectura §5.2 recomienda retirar este
+ * endpoint y mover las señales puras al cliente (`core/reputation.js`, fase
+ * Should), pero también deja la decisión «revisable por el Orchestrator».
+ *
+ * DECISIÓN DEL ORCHESTRATOR (Tanda 3c, C-2): **se MANTIENE**, porque el cliente
+ * lo usa de verdad (`js/api.js`) y hoy funciona. Al mantenerse, se le aplica la
+ * mitigación que pedía la revisión de seguridad (hallazgo H-2): el MISMO freno
+ * de inundación por IP y el mismo rechazo por tamaño declarado que a
+ * `/api/scan`, antes de leer el cuerpo y antes de hacer ningún `fetch` saliente
+ * (RDAP). No consume cuota del DO: no llama a VirusTotal.
+ * Ver `tanda-3a-informe.md` (C-2) y `revision-seguridad-worker.md` (H-2/H-3).
+ */
+async function handleLocalCheck(request, env, corsOrigin) {
+  const contentType = (request.headers.get('Content-Type') || '').toLowerCase();
+  if (!contentType.includes('application/json')) {
+    return errorResponse(415, 'INVALID_JSON', corsOrigin);
+  }
+
+  // Mismo freno de inundación por IP que /api/scan (H-2), antes de leer el cuerpo.
+  if (!(await ipFloodBrake(request, env))) {
+    return errorResponse(429, 'RATE_LIMITED', corsOrigin);
+  }
+
+  if (declaredBodyTooLarge(request)) {
+    return errorResponse(413, 'INVALID_JSON', corsOrigin);
+  }
+
+  let rawBody;
+  try {
+    rawBody = await request.text();
+  } catch {
+    return errorResponse(400, 'INVALID_JSON', corsOrigin);
+  }
+  if (rawBody.length > MAX_BODY_BYTES) {
+    return errorResponse(413, 'INVALID_JSON', corsOrigin);
+  }
+
+  let body;
+  try {
+    body = JSON.parse(rawBody);
+  } catch {
+    return errorResponse(400, 'INVALID_JSON', corsOrigin);
+  }
+
+  const checked = validateUrl(body && body.url);
+  if (!checked.ok) {
+    return errorResponse(checked.code === 'URL_TOO_LONG' ? 414 : 400, checked.code, corsOrigin);
+  }
+
+  try {
+    const result = await checkLocalReputation(checked.url, env);
+    return jsonResponse(200, { ...result, source: 'local', version: APP_VERSION }, corsOrigin);
+  } catch {
+    return errorResponse(500, 'INTERNAL', corsOrigin);
+  }
+}

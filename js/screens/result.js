@@ -1,10 +1,16 @@
 /**
  * Centinela — Result Screen
- * Renderiza el veredicto del análisis: semáforo, detalles, X-Ray, marca, confianza y acciones
+ * Renderiza el veredicto del análisis: semáforo, explicación siempre visible (HU-03),
+ * «¿Qué hago ahora?» (HU-04), marca, X-Ray y acciones.
+ *
+ * La clasificación y los textos los aporta SIEMPRE core/verdict.js (HU-02/HU-03/HU-04):
+ * esta pantalla no replica ninguna regla de clasificación.
  */
 import { extractDomain } from '../history.js';
 import { checkBrandIdentity } from '../brands.js';
 import { loadGuardianPhone } from './guardian.js';
+import { classify, verdictInfo, verdictSteps } from '../core/verdict.js';
+import { verdictShapeSvg } from './verdict-shape.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -16,6 +22,7 @@ export function mount(container, data) {
     resultIcon: $('result-icon'),
     resultTitle: $('result-title'),
     resultMessage: $('result-message'),
+    resultTag: $('result-tag'),
     resultUrl: $('result-url'),
     resultUrlCard: $('result-url-card'),
     resultXray: $('result-xray'),
@@ -35,6 +42,11 @@ export function mount(container, data) {
     btnPreview: $('btn-preview'),
     btnShare: $('btn-share'),
     btnNewCheck: $('btn-new-check'),
+    btnWhatNow: $('btn-what-now'),
+    resultWhatNow: $('result-what-now'),
+    resultWhatNowSteps: $('result-what-now-steps'),
+    resultHelp: $('result-help'),
+    resultGuardianHint: $('result-guardian-hint'),
     previewDialog: $('preview-dialog'),
     previewImg: $('preview-img'),
     previewLoading: $('preview-loading'),
@@ -56,31 +68,13 @@ export function render(result, currentUrl, local) {
   const total = result.total || 0;
   const suspicious = result.suspicious || 0;
 
-  let status, icon, title, message;
+  // ÚNICA clasificación (core/verdict.js): pantalla, historial y estadísticas coinciden.
+  const status = classify(result);
+  const info = verdictInfo(status);
+  const title = info.title;
+  let message = info.explanation;
 
-  if (total === 0) {
-    status = 'warning';
-    icon = '⚠️';
-    title = 'Análisis no disponible';
-    message = 'Ningún motor de seguridad ha podido analizar este enlace todavía. Puede que sea demasiado nuevo o no esté indexado por VirusTotal.';
-  } else if (positives === 0 && suspicious === 0) {
-    status = 'safe';
-    icon = '✅';
-    title = 'Este enlace es seguro';
-    message = `${total} motores de seguridad lo han analizado y ninguno ha encontrado problemas. Puedes abrirlo con tranquilidad.`;
-  } else if (positives > 3) {
-    status = 'danger';
-    icon = '🚨';
-    title = '¡No abras este enlace!';
-    message = `${positives} de ${total} motores de seguridad lo han marcado como peligroso. Podría ser una estafa, phishing o contener malware.`;
-  } else {
-    status = 'warning';
-    icon = '⚠️';
-    title = 'Ten cuidado con este enlace';
-    message = `${positives + suspicious} de ${total} motores han encontrado algo sospechoso. Te recomendamos no introducir datos personales en esta web.`;
-  }
-
-  // Enriquecer mensaje si hay razones del veredicto local y no es seguro
+  // Refuerzo local (matiz, nunca cambia el veredicto por sí solo).
   const effectiveLocal = local || result.local;
   if (effectiveLocal && effectiveLocal.reasons && effectiveLocal.reasons.length > 0 && status !== 'safe') {
     message += ` (${effectiveLocal.reasons.join('. ')})`;
@@ -88,7 +82,10 @@ export function render(result, currentUrl, local) {
 
   if (_els.resultIcon) {
     _els.resultIcon.className = `result-traffic-light ${status}`;
-    _els.resultIcon.innerHTML = `<span>${icon}</span>`;
+    _els.resultIcon.innerHTML = verdictShapeSvg(status, { size: 52 });
+  }
+  if (_els.resultTag) {
+    _els.resultTag.textContent = info.label;
   }
   if (_els.resultTitle) {
     _els.resultTitle.textContent = title;
@@ -134,20 +131,70 @@ export function render(result, currentUrl, local) {
   }
 
   if (_els.btnOpenUrl) {
-    _els.btnOpenUrl.style.display = status === 'danger' ? 'none' : 'inline-flex';
+    // No se invita a abrir un enlace que no se ha podido comprobar (T2c).
+    _els.btnOpenUrl.style.display = (status === 'danger' || status === 'unchecked') ? 'none' : 'inline-flex';
   }
 
+  renderWhatNow(status);
   renderTrustLevel(result);
+  renderHelp(status);
   updateSosButton(status);
   renderTechnicalDetails(result, status);
 
   return { status, positives, total };
 }
 
+/**
+ * HU-04 — Botón «¿Qué hago ahora?»: 3 pasos concretos según el veredicto.
+ * La explicación (HU-03) ya es visible encima, sin desplegar nada.
+ */
+function renderWhatNow(status) {
+  const steps = verdictSteps(status);
+
+  if (_els.btnWhatNow) {
+    _els.btnWhatNow.setAttribute('aria-expanded', 'true');
+    _els.btnWhatNow.onclick = () => {
+      const panel = _els.resultWhatNow;
+      if (!panel) return;
+      const willOpen = panel.hidden;
+      panel.hidden = !willOpen;
+      _els.btnWhatNow.setAttribute('aria-expanded', String(willOpen));
+    };
+  }
+  // Los 3 pasos están A LA VISTA (no escondidos tras un botón): el botón solo
+  // permite plegarlos si la persona quiere.
+  if (_els.resultWhatNow) _els.resultWhatNow.hidden = false;
+  if (_els.resultWhatNowSteps) {
+    _els.resultWhatNowSteps.innerHTML = steps
+      .map((s, i) => `<li><span class="what-now-n" aria-hidden="true">${i + 1}</span><span class="what-now-t">${s}</span></li>`)
+      .join('');
+  }
+}
+
+/**
+ * HU-28 — Referencias de ayuda reales SOLO con veredicto rojo (AC-01/AC-02):
+ * el 017 de INCIBE y el consejo de avisar al banco. En verde/amarillo no
+ * aparecen para no alarmar de más.
+ */
+function renderHelp(status) {
+  if (!_els.resultHelp) return;
+  _els.resultHelp.style.display = status === 'danger' ? 'block' : 'none';
+}
+
+/**
+ * HU-27 — Ángel de la Guarda:
+ *  - AC-01: con contacto y veredicto no verde, se ofrece «Preguntar».
+ *  - AC-03: sin contacto y veredicto no verde, se ofrece guardarlo con un
+ *    mensaje claro (el botón lleva a Ajustes).
+ */
 function updateSosButton(status) {
   const phone = loadGuardianPhone();
+  const nonGreen = status !== 'safe';
   if (_els.btnSos) {
-    _els.btnSos.style.display = (phone && status !== 'safe') ? 'inline-flex' : 'none';
+    _els.btnSos.style.display = (phone && nonGreen) ? 'inline-flex' : 'none';
+  }
+  if (_els.resultGuardianHint) {
+    _els.resultGuardianHint.style.display = (!phone && nonGreen) ? 'block' : 'none';
   }
 }
 
@@ -184,6 +231,7 @@ function renderTechnicalDetails(result, status) {
   if (!_els.resultDetailsContent || !_els.resultDetails) return;
 
   let html = `<div class="detail-grid">
+    <div class="detail-row"><span class="detail-label">Fuente</span><span class="detail-value">VirusTotal</span></div>
     <div class="detail-row"><span class="detail-label">Motores que lo analizaron</span><span class="detail-value">${total}</span></div>
     <div class="detail-row"><span class="detail-label">Detectado como peligroso</span><span class="detail-value ${positives > 0 ? 'danger' : 'safe'}">${positives}</span></div>
     <div class="detail-row"><span class="detail-label">Marcado como sospechoso</span><span class="detail-value ${suspicious > 0 ? 'warning' : ''}">${suspicious}</span></div>
@@ -195,7 +243,7 @@ function renderTechnicalDetails(result, status) {
     html += `<div class="detail-row"><span class="detail-label">Último análisis</span><span class="detail-value">${scanDate.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}</span></div>`;
   }
   if (result.fromCache) {
-    html += `<div class="detail-row"><span class="detail-label">Fuente</span><span class="detail-value" style="color:var(--color-info)">Caché local</span></div>`;
+    html += `<div class="detail-row"><span class="detail-label">Respuesta</span><span class="detail-value" style="color:var(--color-info)">Caché local</span></div>`;
   }
   html += `</div>`;
 

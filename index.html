@@ -3,65 +3,26 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
-    <meta name="theme-color" content="#0d1117">
-    <meta name="description" content="Centinela — Comprueba si un enlace es seguro antes de abrirlo. Protege a tu familia del phishing y las estafas online.">
+    <meta name="theme-color" content="#FFF6EC">
+    <meta name="description" content="Centinela · Comprueba si un enlace es seguro antes de abrirlo. Protege a tu familia del phishing y las estafas online.">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Centinela">
 
-    <title>Centinela — Tu guardián digital</title>
+    <title>Centinela · Tu guardián digital</title>
 
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" sizes="192x192" href="assets/icon-192.png">
     <link rel="icon" type="image/png" sizes="512x512" href="assets/icon-512.png">
     <link rel="apple-touch-icon" href="assets/icon-192.png">
 
-    <!-- Google Fonts: Inter -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" integrity="sha384-EmY0KuCd50MFJlIDVN2zmmd4P5OWDltNDl8ZWGSgoNjltGLqdLd85MhCn+guk0RS" crossorigin="anonymous">
-
-
+    <!-- Tipografía autoalojada (Atkinson Hyperlegible + Nunito) vía css/styles.css.
+         Sin recursos externos: la CSP deja font-src y style-src en 'self'. -->
 
     <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
     <div id="app">
-
-        <!-- ============================
-             ONBOARDING (primera vez)
-             ============================ -->
-        <div id="onboarding" class="overlay hidden" aria-label="Tutorial de bienvenida">
-            <div class="onboarding-container">
-                <div class="onboarding-slides">
-                    <!-- Slide 1 -->
-                    <div class="onboarding-slide active" data-slide="0">
-                        <div class="onboarding-icon">🛡️</div>
-                        <h2>¡Bienvenido a Centinela!</h2>
-                        <p>Tu guardián digital contra enlaces peligrosos. Protege a toda tu familia de estafas y phishing.</p>
-                    </div>
-                    <!-- Slide 2 -->
-                    <div class="onboarding-slide" data-slide="1">
-                        <div class="onboarding-icon">🔗</div>
-                        <h2>¿Cómo funciona?</h2>
-                        <p>Pega un enlace sospechoso, escanea un código QR o comparte directamente desde WhatsApp. Nosotros lo analizamos con más de 70 motores de seguridad.</p>
-                    </div>
-                    <!-- Slide 3 -->
-                    <div class="onboarding-slide" data-slide="2">
-                        <div class="onboarding-icon">🚦</div>
-                        <h2>Fácil como un semáforo</h2>
-                        <p><strong style="color:var(--color-safe)">Verde</strong> = seguro, <strong style="color:var(--color-warning)">Amarillo</strong> = cuidado, <strong style="color:var(--color-danger)">Rojo</strong> = ¡no abras! Así de fácil.</p>
-                    </div>
-                </div>
-                <div class="onboarding-dots">
-                    <span class="dot active" data-dot="0"></span>
-                    <span class="dot" data-dot="1"></span>
-                    <span class="dot" data-dot="2"></span>
-                </div>
-                <button id="onboarding-next" class="btn btn-primary btn-xl">Siguiente</button>
-                <button id="onboarding-skip" class="btn-text">Saltar</button>
-            </div>
-        </div>
 
         <!-- ============================
              HEADER
@@ -185,6 +146,12 @@
             </div>
             <div id="qr-reader" class="qr-reader-container"></div>
             <p class="scanner-hint">Centra el código QR dentro del recuadro</p>
+            <div id="scanner-unavailable" class="scanner-unavailable hidden">
+                <div class="scanner-unavailable-icon" aria-hidden="true">📷</div>
+                <p id="scanner-unavailable-msg" class="scanner-unavailable-msg"></p>
+                <button id="btn-scanner-upload" class="btn btn-secondary">Subir una imagen</button>
+                <button id="btn-scanner-paste" class="btn btn-outline">O pega el enlace a mano</button>
+            </div>
         </div>
 
         <!-- ============================
@@ -200,8 +167,19 @@
                         <div class="ring ring-3"></div>
                     </div>
                 </div>
-                <h2 class="loading-title">Analizando enlace...</h2>
-                <p class="loading-subtitle">Consultando más de 70 motores de seguridad</p>
+                <h2 class="loading-title">Consultando a VirusTotal…</h2>
+                <p class="loading-subtitle">Suele tardar unos segundos.</p>
+                <p id="loading-timer" class="loading-timer" aria-hidden="true">0 s</p>
+                <ol id="loading-steps" class="loading-steps">
+                    <li class="loading-step" data-step="0">Preparando el enlace</li>
+                    <li class="loading-step" data-step="1">Consultando a VirusTotal</li>
+                    <li class="loading-step" data-step="2">Recogiendo el resultado</li>
+                </ol>
+                <p id="loading-step-text" class="loading-step-text" role="status" aria-live="polite">Preparando el enlace</p>
+                <div id="loading-warning" class="loading-warning" hidden>
+                    <p class="loading-warning-text">La comprobación está tardando más de lo habitual.</p>
+                    <button id="loading-retry" class="btn btn-secondary" type="button">Reintentar</button>
+                </div>
                 <div class="loading-bar">
                     <div class="loading-bar-fill"></div>
                 </div>
@@ -213,15 +191,36 @@
              ============================ -->
         <div id="screen-result" class="screen">
             <div class="result-container" aria-live="polite">
-                <!-- Semáforo -->
-                <div id="result-icon" class="result-traffic-light">
-                    <!-- JS inyecta icono dinámico -->
+                <!-- Tarjeta de veredicto: forma propia + palabra + color -->
+                <div class="result-vcard">
+                    <div id="result-icon" class="result-traffic-light">
+                        <!-- JS inyecta la forma dinámica (visto / triángulo / octágono) -->
+                    </div>
+                    <h2 id="result-title" class="result-title">…</h2>
+                    <p id="result-message" class="result-message">…</p>
+                    <span id="result-tag" class="result-tag"></span>
                 </div>
-                <h2 id="result-title" class="result-title">—</h2>
-                <p id="result-message" class="result-message">—</p>
+
+                <!-- ¿Qué hago ahora? (HU-04): botón enorme + los 3 pasos A LA VISTA -->
+                <button id="btn-what-now" class="result-cta" type="button" aria-expanded="true" aria-controls="result-what-now">
+                    ¿Qué hago ahora?
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M6 9l6 7 6-7"></path>
+                    </svg>
+                </button>
+                <section id="result-what-now" class="result-what-now" aria-label="Qué hacer ahora">
+                    <h3 class="result-what-now-title">Qué hacer ahora</h3>
+                    <ol id="result-what-now-steps" class="what-now-steps"></ol>
+                </section>
+
+                <!-- Referencias de ayuda (HU-28): solo si el veredicto es rojo -->
+                <section id="result-help" class="result-help is-hidden" aria-label="Ayuda si el enlace es peligroso">
+                    <h3 class="result-help-title">Si es peligroso, pide ayuda</h3>
+                    <p>Si has dado tus datos (contraseñas, tarjeta), avisa a tu banco. Llama gratis al <strong>017 (INCIBE)</strong> y te ayudan.</p>
+                </section>
 
                 <!-- Aviso de Identidad (Nuevo) -->
-                <div id="result-brand" class="result-brand" style="display: none;">
+                <div id="result-brand" class="result-brand is-hidden">
                     <div class="brand-badge">
                         <span id="brand-icon">🛡️</span>
                         <span id="brand-msg">Identidad Verificada</span>
@@ -230,7 +229,7 @@
                 </div>
 
                 <!-- Aviso de Antigüedad (Nuevo) -->
-                <div id="result-trust" class="result-trust" style="display: none;">
+                <div id="result-trust" class="result-trust is-hidden">
                     <div class="trust-badge">
                         <span id="trust-icon">🕰️</span>
                         <span id="trust-msg">Sitio Establecido</span>
@@ -240,17 +239,17 @@
                 <!-- URL analizada -->
                 <div id="result-url-card" class="result-url-card">
                     <span class="result-url-label">Enlace analizado:</span>
-                    <p id="result-url" class="result-url">—</p>
+                    <p id="result-url" class="result-url">…</p>
                 </div>
                 
                 <!-- X-Ray / Redirección -->
-                <div id="result-xray" class="result-xray" style="display: none;">
+                <div id="result-xray" class="result-xray is-hidden">
                     <div class="xray-header">
                         <span class="xray-tag">🕵️ EFECTO RAYOS X</span>
                         <span class="xray-title-text">Destino real detectado:</span>
                     </div>
-                    <p id="result-final-url" class="result-final-url">—</p>
-                    <p id="result-page-title" class="result-page-title">—</p>
+                    <p id="result-final-url" class="result-final-url">…</p>
+                    <p id="result-page-title" class="result-page-title">…</p>
                 </div>
 
                 <!-- Detalles técnicos (colapsable) -->
@@ -268,6 +267,12 @@
                     </div>
                 </details>
 
+                <!-- Ángel de la Guarda: oferta de guardar contacto (HU-27 AC-03) -->
+                <div id="result-guardian-hint" class="result-guardian-hint is-hidden">
+                    <p>¿No estás seguro? Guarda el teléfono de tu experto en Ajustes y podrás preguntarle con un toque.</p>
+                    <button id="btn-guardian-hint" class="btn btn-secondary btn-sm" type="button">Guardar mi experto</button>
+                </div>
+
                 <!-- Acciones -->
                 <div class="result-actions">
                     <button id="btn-preview" class="btn btn-secondary">
@@ -277,7 +282,7 @@
                         </svg>
                         Vista Previa
                     </button>
-                    <button id="btn-sos" class="btn btn-warning" style="display: none;">
+                    <button id="btn-sos" class="btn btn-warning is-hidden">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
                         </svg>
@@ -339,7 +344,7 @@
                 <div class="dialog-body">
                     <div class="info-item">
                         <h3>🛡️ ¿Qué es Centinela?</h3>
-                        <p>Centinela es tu guardián digital. Analiza enlaces sospechosos usando más de <strong>70 motores de seguridad</strong> de VirusTotal para protegerte del phishing, malware y estafas online.</p>
+                        <p>Centinela es tu guardián digital. Analiza enlaces sospechosos consultando <strong>VirusTotal</strong>, que los comprueba con sus motores de seguridad, para protegerte del phishing, malware y estafas online.</p>
                     </div>
                     <div class="info-item">
                         <h3>🔒 Tu privacidad</h3>
@@ -351,24 +356,19 @@
                     </div>
                     <div class="info-item">
                         <h3>👼 Modo Ángel de la Guarda</h3>
-                        <p>¿No estás seguro de un resultado? Guarda el teléfono de tu "experto" de confianza (hijo, sobrino, amigo) para consultarle con un toque.</p>
-                        <div class="guardian-config">
-                            <input type="tel" id="guardian-phone" placeholder="Ej: 34600112233" class="input-tiny">
-                            <button id="btn-save-guardian" class="btn btn-primary btn-xs">Guardar</button>
-                        </div>
-                        <p id="guardian-status" class="guardian-status"></p>
+                        <p>¿No estás seguro de un resultado? Guarda el teléfono de tu "experto" de confianza (hijo, sobrino, amigo) en <strong>Ajustes</strong> y podrás consultarle con un toque.</p>
                     </div>
                     <div class="info-item">
                         <h3>💬 Consejo rápido</h3>
                         <p>Cuando recibas un enlace sospechoso en WhatsApp o SMS, pulsa <strong>Compartir → Centinela</strong> para comprobarlo al instante.</p>
                     </div>
-                    <div class="info-footer" style="padding-top: var(--sp-md);">
-                        <a href="manual.html" class="btn btn-primary" style="text-decoration: none; width: 100%; display: flex; justify-content: center; gap: 8px;">
+                    <div class="info-footer">
+                        <a href="manual.html" class="btn btn-primary manual-link">
                             📖 Leer Guía de Seguridad
                         </a>
                     </div>
                     <div class="info-version">
-                        <p>Versión 2.0.0 · Desarrollado por <strong>Macias IT</strong></p>
+                        <p>Versión __APP_VERSION__ · Desarrollado por <strong>Macias IT</strong></p>
                     </div>
                 </div>
             </div>
@@ -390,7 +390,7 @@
                 </div>
                 <div class="dialog-body">
                     <p id="error-message" aria-live="polite">Ha ocurrido un error inesperado.</p>
-                    <button id="btn-error-retry" class="btn btn-primary" style="margin-top:var(--space-lg)">Reintentar</button>
+                    <button id="btn-error-retry" class="btn btn-primary btn-retry">Reintentar</button>
                 </div>
             </div>
         </div>
@@ -398,11 +398,11 @@
         <!-- ============================
              DIALOG PREVIEW
              ============================ -->
-        <div id="preview-dialog" class="overlay hidden" role="dialog" aria-labelledby="preview-title" onclick="if(event.target===this){this.classList.add('hidden');document.getElementById('preview-img').src='';document.getElementById('btn-preview').disabled=false;}">
+        <div id="preview-dialog" class="overlay hidden" role="dialog" aria-labelledby="preview-title">
             <div class="dialog dialog-preview">
                 <div class="dialog-header">
                     <h2 id="preview-title" class="dialog-title">📸 Vista Previa Segura</h2>
-                    <button id="btn-close-preview" class="btn-icon" aria-label="Cerrar" onclick="document.getElementById('preview-dialog').classList.add('hidden');document.getElementById('preview-img').src='';document.getElementById('btn-preview').disabled=false;">
+                    <button id="btn-close-preview" class="btn-icon" aria-label="Cerrar">
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <line x1="18" y1="6" x2="6" y2="18"></line>
                             <line x1="6" y1="6" x2="18" y2="18"></line>

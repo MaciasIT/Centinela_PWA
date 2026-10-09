@@ -1,0 +1,76 @@
+/* Centinela — Estilos de la guía de seguridad (manual.html).
+   Extraído del bloque <style> inline del propio manual para cumplir la CSP
+   estricta de §8.6 (style-src 'self'), Tanda 3b. Contenido idéntico al que
+   tenía el HTML; no es trabajo de identidad visual (Tanda 5). */
+
+body {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    padding: var(--sp-xl);
+    max-width: 600px;
+    margin: 0 auto;
+    line-height: var(--lh-relaxed);
+}
+.manual-header {
+    text-align: center;
+    margin-bottom: var(--sp-2xl);
+}
+.manual-header h1 {
+    font-size: var(--fs-2xl);
+    margin-top: var(--sp-md);
+}
+.step {
+    background: var(--bg-secondary);
+    padding: var(--sp-xl);
+    border-radius: var(--radius-2xl);
+    margin-bottom: var(--sp-xl);
+    border: 2px solid var(--border-color);
+}
+.step h2 {
+    font-size: var(--fs-xl);
+    color: var(--color-primary);
+    margin-bottom: var(--sp-md);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.semaforo {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-md);
+    margin: var(--sp-lg) 0;
+}
+.luz {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding: var(--sp-lg);
+    border-radius: var(--radius-xl);
+    background: var(--bg-tertiary);
+    font-size: var(--fs-sm);
+}
+.circulo {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.circulo.verde { background: var(--color-safe); box-shadow: 0 0 10px var(--color-safe); }
+.circulo.naranja { background: var(--color-warning); box-shadow: 0 0 10px var(--color-warning); }
+.circulo.rojo { background: var(--color-danger); box-shadow: 0 0 10px var(--color-danger); }
+
+.btn-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--color-primary);
+    text-decoration: none;
+    font-weight: var(--fw-bold);
+    margin-bottom: var(--sp-xl);
+}
+.footer {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: var(--fs-xs);
+    margin-top: var(--sp-2xl);
+}

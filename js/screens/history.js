@@ -7,12 +7,28 @@
  */
 
 import { getHistory, clearHistory as removeHistory, extractDomain } from '../history.js';
+import { verdictInfo } from '../core/verdict.js';
+import { groupHistoryByDay } from '../core/history-group.js';
+import { verdictShapeSvg } from './verdict-shape.js';
+
+/**
+ * Acción de «volver a comprobar» (HU-25 AC-03). La pantalla no reimplementa el
+ * análisis: solo avisa a quien la montó (app.js) con la URL pulsada.
+ * @type {((url: string) => void) | null}
+ */
+let recheckHandler = null;
+
+/** Registra el manejador único de re-comprobación (lo cablea app.js). */
+export function setRecheckHandler(fn) {
+  recheckHandler = typeof fn === 'function' ? fn : null;
+}
 
 const FILTERS = [
   { key: 'all', label: 'Todos' },
-  { key: 'safe', label: 'Seguros' },
-  { key: 'warning', label: 'Dudosos' },
-  { key: 'danger', label: 'Peligrosos' },
+  { key: 'safe', label: verdictInfo('safe').plural },
+  { key: 'warning', label: verdictInfo('warning').plural },
+  { key: 'danger', label: verdictInfo('danger').plural },
+  { key: 'unchecked', label: verdictInfo('unchecked').plural },
 ];
 
 export function mount(container) {
@@ -80,7 +96,37 @@ function renderList(listEl, filter) {
     return;
   }
 
-  listEl.innerHTML = filtered.map((entry) => historyCard(entry)).join('');
+  // HU-25 AC-01: agrupadas por día en lenguaje natural («Hoy», «Ayer», «Hace 3 días»).
+  const groups = groupHistoryByDay(filtered);
+  listEl.innerHTML = groups
+    .map(
+      (group) => `
+    <div class="history-group">
+      <h3 class="history-group-title">${group.label}</h3>
+      ${group.items.map((entry) => historyCard(entry)).join('')}
+    </div>`
+    )
+    .join('');
+
+  bindRecheck(listEl);
+}
+
+/** HU-25 AC-03: cada entrada permite volver a comprobar su enlace. */
+function bindRecheck(listEl) {
+  listEl.querySelectorAll('.history-card').forEach((card) => {
+    const run = () => {
+      if (!recheckHandler) return;
+      const url = decodeURIComponent(card.dataset.url || '');
+      if (url) recheckHandler(url);
+    };
+    card.addEventListener('click', run);
+    card.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        run();
+      }
+    });
+  });
 }
 
 function historyCard(entry) {
@@ -90,10 +136,10 @@ function historyCard(entry) {
   const safePreview = entry.url.length > 120 ? entry.url.slice(0, 120) + '...' : entry.url;
 
   return `
-    <div class="history-card" role="listitem">
+    <div class="history-card" role="button" tabindex="0" data-url="${encodeURIComponent(entry.url)}" title="Volver a comprobar">
       <div class="history-card-row history-card-top">
         <span class="history-domain" title="${domain}">${domain}</span>
-        <span class="history-badge ${entry.status}">${label}</span>
+        <span class="history-badge ${entry.status}">${verdictShapeSvg(entry.status, { size: 18 })}<span class="history-badge-text">${label}</span></span>
       </div>
       <div class="history-card-row history-card-meta">
         <span class="history-url" title="${entry.url}">${safePreview}</span>
@@ -104,8 +150,5 @@ function historyCard(entry) {
 }
 
 function statusLabel(status) {
-  if (status === 'safe') return 'Seguro';
-  if (status === 'warning') return 'Dudoso';
-  if (status === 'danger') return 'Peligroso';
-  return 'Desconocido';
+  return verdictInfo(status).label;
 }

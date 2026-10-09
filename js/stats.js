@@ -1,24 +1,35 @@
 /**
  * Centinela — Módulo de Estadísticas
- * Contadores locales: total de escaneos, seguro/peligroso/sospechoso, dominios top
+ * Contadores locales alimentados por el veredicto ÚNICO (core/verdict.js).
+ * Estadísticas nunca recalcula la clasificación: cuenta el veredicto recibido,
+ * que es el mismo que pinta la pantalla de resultado y guarda el historial (HU-02).
  */
+import { verdictInfo } from './core/verdict.js';
+import { verdictShapeSvg } from './screens/verdict-shape.js';
 
 const STATS_KEY = 'centinela_stats';
 
 const defaults = {
   totalScans: 0,
   safeCount: 0,
-  dangerousCount: 0,
-  suspiciousCount: 0,
+  warningCount: 0,
+  dangerCount: 0,
+  uncheckedCount: 0,  // T2c: resultados sin datos utilizables (todas las detecciones timeout)
   domains: {},       // { "example.com": 5, "test.com": 2 }
-  lastScanDate: null
+  lastScanDate: null,
 };
 
 function load() {
   try {
     const raw = localStorage.getItem(STATS_KEY);
-    if (raw) return { ...defaults, ...JSON.parse(raw) };
-  } catch { /* corrupt data, start fresh */ }
+    if (raw) {
+      const parsed = { ...defaults, ...JSON.parse(raw) };
+      // Migración desde los alias de la v1 (dangerous/suspicious → danger/warning).
+      if (parsed.warningCount === 0 && parsed.suspiciousCount) parsed.warningCount = parsed.suspiciousCount;
+      if (parsed.dangerCount === 0 && parsed.dangerousCount) parsed.dangerCount = parsed.dangerousCount;
+      return parsed;
+    }
+  } catch { /* datos corruptos: empezar de cero */ }
   return { ...defaults };
 }
 
@@ -27,10 +38,10 @@ function save(stats) {
 }
 
 /**
- * Registrar un escaneo completado.
+ * Registrar un escaneo completado con el veredicto ÚNICO.
  * @param {string} url - URL escaneada
- * @param {string} verdict - 'safe' | 'dangerous' | 'suspicious'
- * @param {string} domain - dominio extraído (opcional, se extrae si no se pasa)
+ * @param {'safe'|'warning'|'danger'|'unchecked'} verdict - veredicto de core/verdict.js
+ * @param {string} [domain] - dominio extraído (opcional)
  */
 export function recordScan(url, verdict, domain) {
   const stats = load();
@@ -38,10 +49,10 @@ export function recordScan(url, verdict, domain) {
   stats.lastScanDate = new Date().toISOString();
 
   if (verdict === 'safe') stats.safeCount += 1;
-  else if (verdict === 'dangerous') stats.dangerousCount += 1;
-  else if (verdict === 'suspicious') stats.suspiciousCount += 1;
+  else if (verdict === 'danger') stats.dangerCount += 1;
+  else if (verdict === 'warning') stats.warningCount += 1;
+  else if (verdict === 'unchecked') stats.uncheckedCount += 1;
 
-  // Contar dominio
   let dom = domain;
   if (!dom && url) {
     try { dom = new URL(url).hostname.replace(/^www\./, ''); } catch { dom = url; }
@@ -54,16 +65,22 @@ export function recordScan(url, verdict, domain) {
   return stats;
 }
 
-/**
- * Obtener estadísticas actuales.
- */
+/** Obtener estadísticas actuales. */
 export function getStats() {
   return load();
 }
 
 /**
- * Obtener top N dominios más escaneados.
+ * Reiniciar las estadísticas locales (HU-26 AC-02). Usa la clave canónica del
+ * módulo: ningún otro sitio manipula `centinela_stats` a mano.
  */
+export function resetStats() {
+  try {
+    localStorage.removeItem(STATS_KEY);
+  } catch {}
+}
+
+/** Obtener top N dominios más escaneados. */
 export function getTopDomains(n = 5) {
   const stats = load();
   return Object.entries(stats.domains)
@@ -71,17 +88,16 @@ export function getTopDomains(n = 5) {
     .slice(0, n);
 }
 
-/**
- * Obtener porcentajes para gráfico.
- */
+/** Porcentajes por veredicto (misma clasificación, incluye «sin comprobar»). */
 export function getPercentages() {
   const stats = load();
-  const total = stats.safeCount + stats.dangerousCount + stats.suspiciousCount;
-  if (total === 0) return { safe: 0, dangerous: 0, suspicious: 0 };
+  const total = stats.safeCount + stats.warningCount + stats.dangerCount + (stats.uncheckedCount || 0);
+  if (total === 0) return { safe: 0, warning: 0, danger: 0, unchecked: 0 };
   return {
     safe: Math.round((stats.safeCount / total) * 100),
-    dangerous: Math.round((stats.dangerousCount / total) * 100),
-    suspicious: Math.round((stats.suspiciousCount / total) * 100)
+    warning: Math.round((stats.warningCount / total) * 100),
+    danger: Math.round((stats.dangerCount / total) * 100),
+    unchecked: Math.round(((stats.uncheckedCount || 0) / total) * 100),
   };
 }
 
@@ -90,44 +106,52 @@ export function getPercentages() {
  * @param {HTMLElement} container
  */
 export function renderStatsScreen(container) {
+  if (!container) return;
   const stats = getStats();
   const pct = getPercentages();
   const top = getTopDomains(5);
 
-  const safePct = pct.safe || 0;
-  const dangPct = pct.dangerous || 0;
-  const suspPct = pct.suspicious || 0;
+  const safe = verdictInfo('safe');
+  const warning = verdictInfo('warning');
+  const danger = verdictInfo('danger');
+  const unchecked = verdictInfo('unchecked');
 
   container.innerHTML = `
     <div class="stats-screen">
       <h2 class="stats-title">📊 Tus estadísticas</h2>
 
       <div class="stats-cards">
-        <div class="stat-card">
-          <span class="stat-number">${stats.totalScans}</span>
-          <span class="stat-label">Total escaneos</span>
-        </div>
         <div class="stat-card stat-safe">
           <span class="stat-number">${stats.safeCount}</span>
-          <span class="stat-label">Seguros</span>
+          <span class="stat-label"><span class="stat-icon stat-icon-safe" aria-hidden="true">${verdictShapeSvg('safe', { size: 20 })}</span>${safe.label}</span>
+        </div>
+        <div class="stat-card stat-warning">
+          <span class="stat-number">${stats.warningCount}</span>
+          <span class="stat-label"><span class="stat-icon stat-icon-warning" aria-hidden="true">${verdictShapeSvg('warning', { size: 20 })}</span>${warning.label}</span>
         </div>
         <div class="stat-card stat-danger">
-          <span class="stat-number">${stats.dangerousCount}</span>
-          <span class="stat-label">Peligrosos</span>
+          <span class="stat-number">${stats.dangerCount}</span>
+          <span class="stat-label"><span class="stat-icon stat-icon-danger" aria-hidden="true">${verdictShapeSvg('danger', { size: 20 })}</span>${danger.label}</span>
+        </div>
+        <div class="stat-card stat-unchecked">
+          <span class="stat-number">${stats.uncheckedCount || 0}</span>
+          <span class="stat-label"><span class="stat-icon stat-icon-unchecked" aria-hidden="true">${verdictShapeSvg('unchecked', { size: 20 })}</span>${unchecked.label}</span>
         </div>
       </div>
 
       <div class="stats-bar-container">
         <h3>Distribución</h3>
         <div class="stats-bar">
-          <div class="stats-bar-segment stats-bar-safe" style="width:${safePct}%" title="Seguro: ${safePct}%"></div>
-          <div class="stats-bar-segment stats-bar-suspicious" style="width:${suspPct}%" title="Sospechoso: ${suspPct}%"></div>
-          <div class="stats-bar-segment stats-bar-danger" style="width:${dangPct}%" title="Peligroso: ${dangPct}%"></div>
+          <div class="stats-bar-segment stats-bar-safe" style="width:${pct.safe}%" title="${safe.label}: ${pct.safe}%"></div>
+          <div class="stats-bar-segment stats-bar-suspicious" style="width:${pct.warning}%" title="${warning.label}: ${pct.warning}%"></div>
+          <div class="stats-bar-segment stats-bar-danger" style="width:${pct.danger}%" title="${danger.label}: ${pct.danger}%"></div>
+          <div class="stats-bar-segment stats-bar-unchecked" style="width:${pct.unchecked}%" title="${unchecked.label}: ${pct.unchecked}%"></div>
         </div>
         <div class="stats-bar-legend">
-          <span>🟢 ${safePct}% seguro</span>
-          <span>🟡 ${suspPct}% dudoso</span>
-          <span>🔴 ${dangPct}% peligroso</span>
+          <span><span class="stat-icon stat-icon-safe" aria-hidden="true">${verdictShapeSvg('safe', { size: 18 })}</span>${pct.safe}% ${safe.label.toLowerCase()}</span>
+          <span><span class="stat-icon stat-icon-warning" aria-hidden="true">${verdictShapeSvg('warning', { size: 18 })}</span>${pct.warning}% ${warning.label.toLowerCase()}</span>
+          <span><span class="stat-icon stat-icon-danger" aria-hidden="true">${verdictShapeSvg('danger', { size: 18 })}</span>${pct.danger}% ${danger.label.toLowerCase()}</span>
+          <span><span class="stat-icon stat-icon-unchecked" aria-hidden="true">${verdictShapeSvg('unchecked', { size: 18 })}</span>${pct.unchecked}% ${unchecked.label.toLowerCase()}</span>
         </div>
       </div>
 
@@ -144,6 +168,7 @@ export function renderStatsScreen(container) {
       </div>
 
       <p class="stats-footer">
+        ${stats.totalScans} comprobaciones en total.
         ${stats.lastScanDate
           ? `Último escaneo: ${new Date(stats.lastScanDate).toLocaleString('es-ES')}`
           : 'No hay escaneos registrados.'}

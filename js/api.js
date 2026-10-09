@@ -1,10 +1,27 @@
 /**
  * Centinela — API Client v2
- * Cliente multi-fuente: VirusTotal + Google Safe Browsing + URLScan.io
+ * Cliente de UNA sola fuente de veredicto: VirusTotal (decisión 1A).
+ * Google Safe Browsing y URLScan.io se han retirado por completo.
  * + Reputación local instantánea
  */
 
+import { normalizeUrl, withDefaultScheme } from './core/validation.js';
+
 const API_URL = 'https://centinela-api.michelmacias-it.workers.dev';
+
+/**
+ * URL canónica del cliente (RC-04, C-3): delega en el **normalizador único
+ * compartido**. Aquí solo se prepara la entrada del usuario (sin esquema →
+ * `https`); la normalización entera vive en `core/validation.js`, también usada
+ * por el Worker. No hay dos versiones.
+ *
+ * @param {unknown} url
+ * @returns {string}
+ */
+function canonicalize(url) {
+  const prepared = withDefaultScheme(url);
+  return normalizeUrl(prepared) || prepared;
+}
 
 export async function checkLocalReputation(url) {
   try {
@@ -21,12 +38,12 @@ export async function checkLocalReputation(url) {
 }
 
 /**
- * Analiza una URL usando el backend multi-fuente
+ * Analiza una URL consultando el Worker (una sola fuente: VirusTotal)
  * @param {string} url - URL a analizar
  * @returns {Promise<object>}
  */
 export async function analyzeUrl(url) {
-    const normalizedUrl = normalizeUrl(url);
+    const normalizedUrl = canonicalize(url);
 
     // Veredicto local instantáneo
     const local = await checkLocalReputation(normalizedUrl);
@@ -51,13 +68,7 @@ export async function analyzeUrl(url) {
         clearTimeout(timeout);
 
         if (!response.ok) {
-            if (response.status === 429) {
-                throw new Error('Has hecho demasiadas comprobaciones. Espera un minuto e inténtalo de nuevo.');
-            }
-            if (response.status >= 500) {
-                throw new Error('El servicio no está disponible ahora. Inténtalo en un momento.');
-            }
-            throw new Error(`Error del servidor (${response.status})`);
+            throw await buildErrorMessage(response);
         }
 
         let payload = await response.json();
@@ -65,30 +76,18 @@ export async function analyzeUrl(url) {
         // ── Formato multi-fuente (v2) ──
         if (payload.results && Array.isArray(payload.results)) {
             const result = normalizeMultiSource(normalizedUrl, payload);
-            if (result.total > 0) {
+            if (hasUsableData(result)) {
                 setLocalCache(normalizedUrl, result);
             }
             return result;
         }
 
         // ── Formato legacy (VT directo, v1) ──
-        let data = payload;
-        let retries = 6;
-        while (retries > 0 && isQueuedOrEmpty(data)) {
-            await new Promise(resolve => setTimeout(resolve, 3000));
-            const retryResponse = await fetch(`${API_URL}/api/scan`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url: normalizedUrl })
-            });
-            if (retryResponse.ok) {
-                data = await retryResponse.json();
-            }
-            retries--;
-        }
-
-        const result = normalizeLegacyVT(normalizedUrl, data);
-        if (result.total > 0) {
+        // Sin reintentos automáticos en segundo plano (HU-09): si el informe
+        // aún no está listo, se devuelve tal cual (total 0 → precaución) y la
+        // pantalla de carga ofrece un reintento MANUAL a los 8 s.
+        const result = normalizeLegacyVT(normalizedUrl, payload);
+        if (hasUsableData(result)) {
             setLocalCache(normalizedUrl, result);
         }
         return result;
@@ -96,10 +95,13 @@ export async function analyzeUrl(url) {
     } catch (err) {
         clearTimeout(timeout);
 
+        // Mensaje ya traducido por el Worker: se propaga tal cual (HU-24).
+        if (err && err.userFacing) throw err;
+
         if (err.name === 'AbortError') {
             throw new Error('La comprobación tardó demasiado. Inténtalo de nuevo.');
         }
-        if (!navigator.onLine) {
+        if (typeof navigator !== 'undefined' && navigator.onLine === false) {
             throw new Error('No tienes conexión a Internet. Conéctate y vuelve a intentarlo.');
         }
         if (err instanceof TypeError && err.message === 'Failed to fetch') {
@@ -112,12 +114,50 @@ export async function analyzeUrl(url) {
 // ── Normalizadores ────────────────────────────────────────────────
 
 /**
- * Normaliza respuesta multi-fuente (worker v2) al formato que espera la UI
+ * Traduce la respuesta de error del Worker a un mensaje llano (HU-24).
+ * Nunca expone el código interno ni el detalle del proveedor.
+ * @param {Response} response
+ * @returns {Promise<Error>}
+ */
+async function buildErrorMessage(response) {
+    let code = null;
+    try {
+        const body = await response.json();
+        code = body && body.error && body.error.code ? body.error.code : null;
+    } catch {
+        code = null;
+    }
+
+    const userFacing = (message) => {
+        const err = new Error(message);
+        // El mensaje ya está en lenguaje llano y viene del servidor: no debe
+        // volver a envolverse ni sustituirse por el mensaje genérico de abajo.
+        err.userFacing = true;
+        return err;
+    };
+
+    if (code === 'QUOTA_EXCEEDED' || response.status === 503) {
+        return userFacing('Ahora mismo no se ha podido comprobar este enlace: el servicio está muy solicitado. Inténtalo dentro de un minuto.');
+    }
+    if (code === 'RATE_LIMITED' || response.status === 429) {
+        return userFacing('Has hecho demasiadas comprobaciones. Espera un minuto e inténtalo de nuevo.');
+    }
+    if (code === 'FORBIDDEN_ORIGIN' || response.status === 403) {
+        return userFacing('La aplicación no tiene permiso para comprobar enlaces desde este sitio.');
+    }
+    if (response.status >= 500) {
+        return userFacing('El servicio no está disponible ahora. Inténtalo en un momento.');
+    }
+    return userFacing('No se ha podido comprobar el enlace. Inténtalo de nuevo.');
+}
+
+/**
+ * Normaliza la respuesta del Worker (una sola fuente: VirusTotal) al formato
+ * que espera la UI. Cualquier fuente que no sea VirusTotal se ignora: el Worker
+ * ya no tiene ramas multi-fuente (decisión 1A).
  */
 function normalizeMultiSource(url, payload) {
     const vtResult = payload.results.find(r => r.source === 'virustotal');
-    const gsbResult = payload.results.find(r => r.source === 'google_safebrowsing');
-    const urlscanResult = payload.results.find(r => r.source === 'urlscan');
 
     const result = { url, fromCache: false, sources: [] };
 
@@ -129,6 +169,7 @@ function normalizeMultiSource(url, payload) {
             suspicious: stats.suspicious || 0,
             harmless: stats.harmless || 0,
             undetected: stats.undetected || 0,
+            timeout: stats.timeout || 0,
             total: (stats.malicious || 0) + (stats.suspicious || 0) + (stats.harmless || 0) + (stats.undetected || 0) + (stats.timeout || 0),
             scanDate: attr.last_analysis_date || Date.now() / 1000,
             engines: extractEngines(vtResult.data),
@@ -139,24 +180,6 @@ function normalizeMultiSource(url, payload) {
             vtId: vtResult.data.data?.id || null,
         });
         result.sources.push('virustotal');
-    }
-
-    if (gsbResult) {
-        result.gsbSafe = gsbResult.data.safe;
-        result.gsbThreats = gsbResult.data.threats;
-        result.sources.push('google_safebrowsing');
-    }
-
-    if (urlscanResult) {
-        result.urlscanUuid = urlscanResult.data.uuid;
-        result.urlscanPending = urlscanResult.data.pending || false;
-        result.urlscanResultUrl = urlscanResult.data.resultUrl;
-        result.sources.push('urlscan');
-    }
-
-    // Conservar errores para depuración
-    if (payload.errors && payload.errors.length > 0) {
-        result.sourceErrors = payload.errors;
     }
 
     return result;
@@ -173,7 +196,8 @@ function normalizeLegacyVT(url, data) {
     const suspicious = stats.suspicious || 0;
     const harmless = stats.harmless || 0;
     const undetected = stats.undetected || 0;
-    const calcTotal = malicious + suspicious + harmless + undetected + (stats.timeout || 0);
+    const timeout = stats.timeout || 0;
+    const calcTotal = malicious + suspicious + harmless + undetected + timeout;
 
     return {
         positives: malicious,
@@ -181,6 +205,7 @@ function normalizeLegacyVT(url, data) {
         suspicious,
         harmless,
         undetected,
+        timeout,
         scanDate: attr.last_analysis_date || Date.now() / 1000,
         engines: extractEngines(data),
         permalink: data.data?.links?.self ?
@@ -193,27 +218,22 @@ function normalizeLegacyVT(url, data) {
     };
 }
 
-function isQueuedOrEmpty(data) {
-    if (!data || !data.data) return false;
-    const attr = data.data.attributes || {};
-    const stats = attr.last_analysis_stats || attr.stats || {};
-    const total = (stats.malicious || 0) + (stats.suspicious || 0) + (stats.harmless || 0) + (stats.undetected || 0) + (stats.timeout || 0);
-    return attr.status === 'queued' || attr.status === 'in-progress' || total === 0;
-}
-
 // ── Utilidades ────────────────────────────────────────────────────
 
-export function normalizeUrl(url) {
-    let trimmed = url.trim();
-    if (!trimmed.match(/^https?:\/\//i)) {
-        trimmed = `https://${trimmed}`;
-    }
-    return trimmed;
+/**
+ * ¿El resultado tiene datos utilizables? (T2c)
+ * `total > 0` NO basta: un informe 100 % timeout tiene `total > 0` pero ninguna
+ * detección real. Ese resultado NO se cachea, para que «volver a intentarlo»
+ * vuelva a consultar la fuente en vez de devolver un «no comprobado» viejo.
+ */
+function hasUsableData(result) {
+    const real = (result.positives || 0) + (result.suspicious || 0) + (result.harmless || 0) + (result.undetected || 0);
+    return (result.total || 0) > 0 && real > 0;
 }
 
 export function validateUrl(text) {
     if (!text || text.trim().length === 0) {
-        return { valid: false, url: '', reason: 'empty' };
+        return { valid: false, url: '', reason: 'Pega primero un enlace.' };
     }
 
     let url = text.trim();
@@ -224,18 +244,18 @@ export function validateUrl(text) {
     try {
         const parsed = new URL(url);
 
-        if (!parsed.hostname || !parsed.hostname.includes('.')) {
-            return { valid: false, url, reason: 'Eso no parece un enlace web válido.' };
-        }
-
         const localPatterns = ['127.0.0.1', 'localhost', '0.0.0.0', '192.168.', '10.', '172.'];
         if (localPatterns.some(p => parsed.hostname.startsWith(p))) {
-            return { valid: false, url, reason: 'Esa es una dirección de red local, no una web.' };
+            return { valid: false, url, reason: 'Esa dirección es de tu propio ordenador o de tu casa; no hace falta comprobarla.' };
+        }
+
+        if (!parsed.hostname || !parsed.hostname.includes('.')) {
+            return { valid: false, url, reason: 'Esto no parece un enlace web. Por ejemplo: www.tu-banco.es' };
         }
 
         return { valid: true, url: parsed.href, reason: '' };
     } catch {
-        return { valid: false, url, reason: 'Eso no parece un enlace web válido.' };
+        return { valid: false, url, reason: 'Esto no parece un enlace web. Por ejemplo: www.tu-banco.es' };
     }
 }
 

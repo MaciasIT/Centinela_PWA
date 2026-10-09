@@ -8,6 +8,8 @@ dist-temp
 AUDITORIA_*.md
 PLAN_MEJORAS_*.md
 
-# Environment secrets (credentials)
-.env.r2
-.env.local
+# Secretos y variables de entorno (HU-34, NFR-S6): NUNCA versionados.
+# Toda clave de API se configura con `wrangler secret put`.
+.env
+.env.*
+.dev.vars
