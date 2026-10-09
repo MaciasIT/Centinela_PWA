@@ -58,7 +58,7 @@ function settingsMarkup() {
         <h3>🗑️ Tus datos locales</h3>
         <p class="settings-hint">El historial y las estadísticas solo se guardan en este dispositivo.</p>
         <div class="settings-actions">
-          <button id="btn-clear-history" class="btn btn-secondary btn-full" type="button">Borrar historial</button>
+          <button id="btn-clear-history-settings" class="btn btn-secondary btn-full" type="button">Borrar historial</button>
           <button id="btn-reset-stats" class="btn btn-secondary btn-full" type="button">Reiniciar estadísticas</button>
         </div>
       </div>
@@ -76,7 +76,7 @@ function bindSettings(container) {
   const saveGuardianBtn = container.querySelector('#btn-save-guardian');
   const clearGuardianBtn = container.querySelector('#btn-clear-guardian');
   const guardianStatus = container.querySelector('#guardian-status');
-  const clearHistoryBtn = container.querySelector('#btn-clear-history');
+  const clearHistoryBtn = container.querySelector('#btn-clear-history-settings');
   const resetStatsBtn = container.querySelector('#btn-reset-stats');
 
   // Selector de tema (Claro / Oscuro / Sistema), persistente entre sesiones.
