@@ -5,7 +5,23 @@
  * + Reputación local instantánea
  */
 
+import { normalizeUrl, withDefaultScheme } from './core/validation.js';
+
 const API_URL = 'https://centinela-api.michelmacias-it.workers.dev';
+
+/**
+ * URL canónica del cliente (RC-04, C-3): delega en el **normalizador único
+ * compartido**. Aquí solo se prepara la entrada del usuario (sin esquema →
+ * `https`); la normalización entera vive en `core/validation.js`, también usada
+ * por el Worker. No hay dos versiones.
+ *
+ * @param {unknown} url
+ * @returns {string}
+ */
+function canonicalize(url) {
+  const prepared = withDefaultScheme(url);
+  return normalizeUrl(prepared) || prepared;
+}
 
 export async function checkLocalReputation(url) {
   try {
@@ -27,7 +43,7 @@ export async function checkLocalReputation(url) {
  * @returns {Promise<object>}
  */
 export async function analyzeUrl(url) {
-    const normalizedUrl = normalizeUrl(url);
+    const normalizedUrl = canonicalize(url);
 
     // Veredicto local instantáneo
     const local = await checkLocalReputation(normalizedUrl);
@@ -213,14 +229,6 @@ function normalizeLegacyVT(url, data) {
 function hasUsableData(result) {
     const real = (result.positives || 0) + (result.suspicious || 0) + (result.harmless || 0) + (result.undetected || 0);
     return (result.total || 0) > 0 && real > 0;
-}
-
-export function normalizeUrl(url) {
-    let trimmed = url.trim();
-    if (!trimmed.match(/^https?:\/\//i)) {
-        trimmed = `https://${trimmed}`;
-    }
-    return trimmed;
 }
 
 export function validateUrl(text) {

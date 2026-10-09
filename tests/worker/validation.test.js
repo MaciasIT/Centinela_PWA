@@ -12,6 +12,8 @@ import {
   MAX_URL_LENGTH,
   MAX_BODY_BYTES,
 } from '../../worker/src/validation.js';
+// El normalizador compartido que usa el cliente (RC-04 / C-3).
+import { normalizeUrl as sharedNormalizeUrl } from '../../js/core/validation.js';
 
 const results = [];
 function ok(name, fn) {
@@ -72,6 +74,23 @@ ok('validateUrl rechaza host sin punto, localhost y direcciones internas', () =>
   }
 });
 
+ok('T3c/C-3: cliente y Worker usan la MISMA función normalizeUrl (sin reimplementar)', () => {
+  assert(
+    normalizeUrl === sharedNormalizeUrl,
+    'el Worker debe reexportar el normalizador compartido (core/validation.js), no tener el suyo'
+  );
+});
+
+ok('H-5: validateUrl rechaza la forma raíz con punto final (localhost., foo.localhost.)', () => {
+  for (const u of ['http://localhost.', 'http://foo.localhost.', 'http://localhost.:8080']) {
+    const r = validateUrl(u);
+    assert(!r.ok, `${u} no debería ser válido`);
+    assert(r.code === 'INVALID_URL', `${u}: código ${r.code}`);
+  }
+  // Un FQDN raíz legítimo (con punto final) NO se rechaza.
+  assert(validateUrl('https://ejemplo.com./x').ok, 'ejemplo.com. es un FQDN válido');
+});
+
 ok('validateUrl devuelve la URL tal cual (sin reescribir el esquema)', () => {
   const r = validateUrl('http://ejemplo.com/a');
   assert(r.ok, 'debería ser válida');
@@ -87,10 +106,22 @@ ok('RC-04: pares equivalentes producen la MISMA clave', () => {
   assert(a === b, `no coinciden: ${a} vs ${b}`);
 });
 
-ok('RC-04: http y https equivalentes comparten clave (esquema forzado)', () => {
+ok('T3c/C-1: normalizeUrl NO fuerza el esquema (la URL que se analiza conserva http/https)', () => {
+  const http = normalizeUrl('http://ejemplo.com');
+  const https = normalizeUrl('https://ejemplo.com');
+  assert(http === 'http://ejemplo.com/', `http → ${http}`);
+  assert(https === 'https://ejemplo.com/', `https → ${https}`);
+  assert(http !== https, 'http y https son recursos distintos: NO deben compartir clave');
+});
+
+ok('T3c/C-1: normalizeUrl conserva el puerto explícito (no analiza otro recurso)', () => {
   assert(
-    normalizeUrl('http://ejemplo.com') === normalizeUrl('https://ejemplo.com'),
-    'http y https deben normalizar al mismo valor'
+    normalizeUrl('https://ejemplo.com:8443/x') === 'https://ejemplo.com:8443/x',
+    `con puerto → ${normalizeUrl('https://ejemplo.com:8443/x')}`
+  );
+  assert(
+    normalizeUrl('https://ejemplo.com:443/x') === 'https://ejemplo.com/x',
+    'el puerto por defecto se omite'
   );
 });
 

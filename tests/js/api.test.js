@@ -1,4 +1,5 @@
-import { validateUrl, normalizeUrl, analyzeUrl } from '../../js/api.js';
+import { validateUrl, analyzeUrl } from '../../js/api.js';
+import { normalizeUrl, withDefaultScheme } from '../../js/core/validation.js';
 import { classify } from '../../js/core/verdict.js';
 
 const results = [];
@@ -42,14 +43,19 @@ ok('validateUrl rechaza host sin dominio y localhost', () => {
   if (r3.valid) throw new Error('URL sin host no debería ser válido');
 });
 
-ok('normalizeUrl añade https si falta', () => {
-  const r = normalizeUrl('example.com');
-  if (r !== 'https://example.com') throw new Error(`esperado https://example.com, obtuve ${r}`);
+ok('T3c: la entrada sin esquema se prepara a https y se canoniza (normalizador único)', () => {
+  const prepared = withDefaultScheme('example.com');
+  if (prepared !== 'https://example.com') throw new Error(`withDefaultScheme devolvió ${prepared}`);
+  const r = normalizeUrl(prepared);
+  if (r !== 'https://example.com/') throw new Error(`esperado https://example.com/, obtuve ${r}`);
 });
 
-ok('normalizeUrl respeta http explícito', () => {
-  const r = normalizeUrl('http://example.com');
-  if (r !== 'http://example.com') throw new Error(`esperado http://example.com, obtuve ${r}`);
+ok('T3c/C-1: normalizeUrl PRESERVA el esquema explícito (no lo fuerza a https)', () => {
+  const http = normalizeUrl('http://example.com');
+  const https = normalizeUrl('https://example.com');
+  if (http !== 'http://example.com/') throw new Error(`esperado http://example.com/, obtuve ${http}`);
+  if (https !== 'https://example.com/') throw new Error(`esperado https://example.com/, obtuve ${https}`);
+  if (http === https) throw new Error('http y https NO deben compartir clave: son recursos distintos');
 });
 
 /* ── HU-01: mensajes de validación en lenguaje llano ── */
@@ -198,6 +204,34 @@ okAsync('T3a: 503 QUOTA_EXCEEDED se declara honestamente («no se ha podido comp
     if (!captured) throw new Error('debería lanzar error');
     if (!/no se ha podido comprobar/i.test(captured)) throw new Error(`mensaje poco honesto: ${captured}`);
     if (/QUOTA_EXCEEDED|503/.test(captured)) throw new Error(`fuga de detalle técnico: ${captured}`);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+/* ── T3c: el cliente usa el normalizador ÚNICO compartido ── */
+
+okAsync('T3c/C-3: analyzeUrl envía al Worker la URL canónica del normalizador compartido', async () => {
+  const originalFetch = globalThis.fetch;
+  const payload = {
+    results: [
+      { source: 'virustotal', data: { data: { id: 'x', attributes: { last_analysis_stats: { malicious: 0, suspicious: 0, harmless: 5, undetected: 0 }, last_analysis_date: 1790000000 } } } },
+    ],
+  };
+  let scanBody = null;
+  globalThis.fetch = async (url, init) => {
+    const u = String(url);
+    if (u.includes('/api/local-check')) return { ok: true, json: async () => ({}) };
+    if (u.includes('/api/scan')) {
+      scanBody = JSON.parse(init.body).url;
+      return { ok: true, status: 200, json: async () => payload };
+    }
+    throw new Error(`fetch inesperado: ${u}`);
+  };
+  try {
+    if (globalThis.localStorage) globalThis.localStorage.removeItem('centinela_cache');
+    await analyzeUrl('https://WWW.Ejemplo.com/a/?utm_source=x&b=2&a=1#frag');
+    if (scanBody !== 'https://ejemplo.com/a?a=1&b=2') throw new Error(`URL enviada: ${scanBody}`);
   } finally {
     globalThis.fetch = originalFetch;
   }
