@@ -5,7 +5,7 @@
 import { getHistory, extractDomain, formatDate } from '../history.js';
 import { getRandomTip } from '../tips.js';
 import { hapticFeedback } from '../share.js';
-import { verdictInfo } from '../core/verdict.js';
+import { verdictShapeSvg } from './verdict-shape.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -58,12 +58,11 @@ export function renderHistory() {
 
   const recent = history.slice(0, 5);
   els.historyList.innerHTML = recent.map(item => {
-    const statusEmoji = verdictInfo(item.status).icon;
     const domain = extractDomain(item.url);
     const date = formatDate(item.date);
     return `
       <div class="history-item" data-url="${encodeURIComponent(item.url)}" role="button" tabindex="0">
-        <span class="history-status">${statusEmoji}</span>
+        <span class="history-status ${item.status}" aria-hidden="true">${verdictShapeSvg(item.status, { size: 24 })}</span>
         <div class="history-info">
           <div class="history-url">${domain}</div>
           <div class="history-date">${date}</div>

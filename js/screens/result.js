@@ -10,6 +10,7 @@ import { extractDomain } from '../history.js';
 import { checkBrandIdentity } from '../brands.js';
 import { loadGuardianPhone } from './guardian.js';
 import { classify, verdictInfo, verdictSteps } from '../core/verdict.js';
+import { verdictShapeSvg } from './verdict-shape.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -21,6 +22,7 @@ export function mount(container, data) {
     resultIcon: $('result-icon'),
     resultTitle: $('result-title'),
     resultMessage: $('result-message'),
+    resultTag: $('result-tag'),
     resultUrl: $('result-url'),
     resultUrlCard: $('result-url-card'),
     resultXray: $('result-xray'),
@@ -69,7 +71,6 @@ export function render(result, currentUrl, local) {
   // ÚNICA clasificación (core/verdict.js): pantalla, historial y estadísticas coinciden.
   const status = classify(result);
   const info = verdictInfo(status);
-  const icon = info.icon;
   const title = info.title;
   let message = info.explanation;
 
@@ -81,7 +82,10 @@ export function render(result, currentUrl, local) {
 
   if (_els.resultIcon) {
     _els.resultIcon.className = `result-traffic-light ${status}`;
-    _els.resultIcon.innerHTML = `<span>${icon}</span>`;
+    _els.resultIcon.innerHTML = verdictShapeSvg(status, { size: 52 });
+  }
+  if (_els.resultTag) {
+    _els.resultTag.textContent = info.label;
   }
   if (_els.resultTitle) {
     _els.resultTitle.textContent = title;
@@ -148,7 +152,7 @@ function renderWhatNow(status) {
   const steps = verdictSteps(status);
 
   if (_els.btnWhatNow) {
-    _els.btnWhatNow.setAttribute('aria-expanded', 'false');
+    _els.btnWhatNow.setAttribute('aria-expanded', 'true');
     _els.btnWhatNow.onclick = () => {
       const panel = _els.resultWhatNow;
       if (!panel) return;
@@ -157,9 +161,13 @@ function renderWhatNow(status) {
       _els.btnWhatNow.setAttribute('aria-expanded', String(willOpen));
     };
   }
-  if (_els.resultWhatNow) _els.resultWhatNow.hidden = true;
+  // Los 3 pasos están A LA VISTA (no escondidos tras un botón): el botón solo
+  // permite plegarlos si la persona quiere.
+  if (_els.resultWhatNow) _els.resultWhatNow.hidden = false;
   if (_els.resultWhatNowSteps) {
-    _els.resultWhatNowSteps.innerHTML = steps.map((s) => `<li>${s}</li>`).join('');
+    _els.resultWhatNowSteps.innerHTML = steps
+      .map((s, i) => `<li><span class="what-now-n" aria-hidden="true">${i + 1}</span><span class="what-now-t">${s}</span></li>`)
+      .join('');
   }
 }
 

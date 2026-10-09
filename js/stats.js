@@ -5,6 +5,7 @@
  * que es el mismo que pinta la pantalla de resultado y guarda el historial (HU-02).
  */
 import { verdictInfo } from './core/verdict.js';
+import { verdictShapeSvg } from './screens/verdict-shape.js';
 
 const STATS_KEY = 'centinela_stats';
 
@@ -122,19 +123,19 @@ export function renderStatsScreen(container) {
       <div class="stats-cards">
         <div class="stat-card stat-safe">
           <span class="stat-number">${stats.safeCount}</span>
-          <span class="stat-label">${safe.icon} ${safe.label}</span>
+          <span class="stat-label"><span class="stat-icon stat-icon-safe" aria-hidden="true">${verdictShapeSvg('safe', { size: 20 })}</span>${safe.label}</span>
         </div>
         <div class="stat-card stat-warning">
           <span class="stat-number">${stats.warningCount}</span>
-          <span class="stat-label">${warning.icon} ${warning.label}</span>
+          <span class="stat-label"><span class="stat-icon stat-icon-warning" aria-hidden="true">${verdictShapeSvg('warning', { size: 20 })}</span>${warning.label}</span>
         </div>
         <div class="stat-card stat-danger">
           <span class="stat-number">${stats.dangerCount}</span>
-          <span class="stat-label">${danger.icon} ${danger.label}</span>
+          <span class="stat-label"><span class="stat-icon stat-icon-danger" aria-hidden="true">${verdictShapeSvg('danger', { size: 20 })}</span>${danger.label}</span>
         </div>
         <div class="stat-card stat-unchecked">
           <span class="stat-number">${stats.uncheckedCount || 0}</span>
-          <span class="stat-label">${unchecked.icon} ${unchecked.label}</span>
+          <span class="stat-label"><span class="stat-icon stat-icon-unchecked" aria-hidden="true">${verdictShapeSvg('unchecked', { size: 20 })}</span>${unchecked.label}</span>
         </div>
       </div>
 
@@ -147,10 +148,10 @@ export function renderStatsScreen(container) {
           <div class="stats-bar-segment stats-bar-unchecked" style="width:${pct.unchecked}%" title="${unchecked.label}: ${pct.unchecked}%"></div>
         </div>
         <div class="stats-bar-legend">
-          <span>${safe.icon} ${pct.safe}% ${safe.label.toLowerCase()}</span>
-          <span>${warning.icon} ${pct.warning}% ${warning.label.toLowerCase()}</span>
-          <span>${danger.icon} ${pct.danger}% ${danger.label.toLowerCase()}</span>
-          <span>${unchecked.icon} ${pct.unchecked}% ${unchecked.label.toLowerCase()}</span>
+          <span><span class="stat-icon stat-icon-safe" aria-hidden="true">${verdictShapeSvg('safe', { size: 18 })}</span>${pct.safe}% ${safe.label.toLowerCase()}</span>
+          <span><span class="stat-icon stat-icon-warning" aria-hidden="true">${verdictShapeSvg('warning', { size: 18 })}</span>${pct.warning}% ${warning.label.toLowerCase()}</span>
+          <span><span class="stat-icon stat-icon-danger" aria-hidden="true">${verdictShapeSvg('danger', { size: 18 })}</span>${pct.danger}% ${danger.label.toLowerCase()}</span>
+          <span><span class="stat-icon stat-icon-unchecked" aria-hidden="true">${verdictShapeSvg('unchecked', { size: 18 })}</span>${pct.unchecked}% ${unchecked.label.toLowerCase()}</span>
         </div>
       </div>
 

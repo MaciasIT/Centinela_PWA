@@ -4,12 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
     <meta name="theme-color" content="#FFF6EC">
-    <meta name="description" content="Centinela — Comprueba si un enlace es seguro antes de abrirlo. Protege a tu familia del phishing y las estafas online.">
+    <meta name="description" content="Centinela · Comprueba si un enlace es seguro antes de abrirlo. Protege a tu familia del phishing y las estafas online.">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Centinela">
 
-    <title>Centinela — Tu guardián digital</title>
+    <title>Centinela · Tu guardián digital</title>
 
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" sizes="192x192" href="assets/icon-192.png">
@@ -191,16 +191,25 @@
              ============================ -->
         <div id="screen-result" class="screen">
             <div class="result-container" aria-live="polite">
-                <!-- Semáforo -->
-                <div id="result-icon" class="result-traffic-light">
-                    <!-- JS inyecta icono dinámico -->
+                <!-- Tarjeta de veredicto: forma propia + palabra + color -->
+                <div class="result-vcard">
+                    <div id="result-icon" class="result-traffic-light">
+                        <!-- JS inyecta la forma dinámica (visto / triángulo / octágono) -->
+                    </div>
+                    <h2 id="result-title" class="result-title">…</h2>
+                    <p id="result-message" class="result-message">…</p>
+                    <span id="result-tag" class="result-tag"></span>
                 </div>
-                <h2 id="result-title" class="result-title">—</h2>
-                <p id="result-message" class="result-message">—</p>
 
-                <!-- ¿Qué hago ahora? (HU-04): 3 pasos concretos según el veredicto -->
-                <button id="btn-what-now" class="btn btn-secondary btn-full" type="button" aria-expanded="false" aria-controls="result-what-now">¿Qué hago ahora?</button>
-                <section id="result-what-now" class="result-what-now" hidden aria-label="Qué hacer ahora">
+                <!-- ¿Qué hago ahora? (HU-04): botón enorme + los 3 pasos A LA VISTA -->
+                <button id="btn-what-now" class="result-cta" type="button" aria-expanded="true" aria-controls="result-what-now">
+                    ¿Qué hago ahora?
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M6 9l6 7 6-7"></path>
+                    </svg>
+                </button>
+                <section id="result-what-now" class="result-what-now" aria-label="Qué hacer ahora">
+                    <h3 class="result-what-now-title">Qué hacer ahora</h3>
                     <ol id="result-what-now-steps" class="what-now-steps"></ol>
                 </section>
 
@@ -230,7 +239,7 @@
                 <!-- URL analizada -->
                 <div id="result-url-card" class="result-url-card">
                     <span class="result-url-label">Enlace analizado:</span>
-                    <p id="result-url" class="result-url">—</p>
+                    <p id="result-url" class="result-url">…</p>
                 </div>
                 
                 <!-- X-Ray / Redirección -->
@@ -239,8 +248,8 @@
                         <span class="xray-tag">🕵️ EFECTO RAYOS X</span>
                         <span class="xray-title-text">Destino real detectado:</span>
                     </div>
-                    <p id="result-final-url" class="result-final-url">—</p>
-                    <p id="result-page-title" class="result-page-title">—</p>
+                    <p id="result-final-url" class="result-final-url">…</p>
+                    <p id="result-page-title" class="result-page-title">…</p>
                 </div>
 
                 <!-- Detalles técnicos (colapsable) -->

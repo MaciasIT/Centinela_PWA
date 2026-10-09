@@ -9,6 +9,7 @@
 import { getHistory, clearHistory as removeHistory, extractDomain } from '../history.js';
 import { verdictInfo } from '../core/verdict.js';
 import { groupHistoryByDay } from '../core/history-group.js';
+import { verdictShapeSvg } from './verdict-shape.js';
 
 /**
  * Acción de «volver a comprobar» (HU-25 AC-03). La pantalla no reimplementa el
@@ -138,7 +139,7 @@ function historyCard(entry) {
     <div class="history-card" role="button" tabindex="0" data-url="${encodeURIComponent(entry.url)}" title="Volver a comprobar">
       <div class="history-card-row history-card-top">
         <span class="history-domain" title="${domain}">${domain}</span>
-        <span class="history-badge ${entry.status}">${label}</span>
+        <span class="history-badge ${entry.status}">${verdictShapeSvg(entry.status, { size: 18 })}<span class="history-badge-text">${label}</span></span>
       </div>
       <div class="history-card-row history-card-meta">
         <span class="history-url" title="${entry.url}">${safePreview}</span>
