@@ -144,6 +144,65 @@ okAsync('T2c: un resultado sin datos (todo timeout) no se cachea, para que «vol
   }
 });
 
+/* ── T3a: una sola fuente y degradación honesta ── */
+
+okAsync('T3a: la respuesta multi-fuente solo conserva VirusTotal (retiradas GSB y URLScan)', async () => {
+  const originalFetch = globalThis.fetch;
+  const payload = {
+    results: [
+      { source: 'virustotal', data: { data: { id: 'abc', attributes: { last_analysis_stats: { malicious: 0, suspicious: 2, harmless: 60, undetected: 8 }, last_analysis_date: 1790000000 } } } },
+      { source: 'google_safebrowsing', data: { safe: false, threats: [{ threatType: 'MALWARE' }] } },
+      { source: 'urlscan', data: { uuid: 'u-1', pending: true, resultUrl: 'https://urlscan.io/result/u-1/' } },
+    ],
+  };
+  globalThis.fetch = async (url) => {
+    const u = String(url);
+    if (u.includes('/api/local-check')) return { ok: true, json: async () => ({}) };
+    if (u.includes('/api/scan')) return { ok: true, status: 200, json: async () => payload };
+    throw new Error(`fetch inesperado: ${u}`);
+  };
+  try {
+    if (globalThis.localStorage) globalThis.localStorage.removeItem('centinela_cache');
+    const result = await analyzeUrl(`https://una-fuente.example/${Date.now()}`);
+    if (result.gsbSafe !== undefined || result.gsbThreats !== undefined) throw new Error('gsbSafe/gsbThreats deben haber desaparecido');
+    if (result.urlscanUuid !== undefined || result.urlscanResultUrl !== undefined) throw new Error('los campos de URLScan deben haber desaparecido');
+    if (JSON.stringify(result.sources) !== JSON.stringify(['virustotal'])) throw new Error(`sources=${JSON.stringify(result.sources)}`);
+    if (result.suspicious !== 2) throw new Error(`suspicious esperado 2, obtuve ${result.suspicious}`);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+okAsync('T3a: 503 QUOTA_EXCEEDED se declara honestamente («no se ha podido comprobar»), sin detalle interno', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    const u = String(url);
+    if (u.includes('/api/local-check')) return { ok: true, json: async () => ({}) };
+    if (u.includes('/api/scan')) {
+      return {
+        ok: false,
+        status: 503,
+        json: async () => ({ error: { code: 'QUOTA_EXCEEDED', message: 'El servicio está muy solicitado ahora mismo, así que no se ha podido comprobar este enlace. Inténtalo dentro de un minuto.' } }),
+      };
+    }
+    throw new Error(`fetch inesperado: ${u}`);
+  };
+  try {
+    if (globalThis.localStorage) globalThis.localStorage.removeItem('centinela_cache');
+    let captured = null;
+    try {
+      await analyzeUrl(`https://sin-cuota.example/${Date.now()}`);
+    } catch (e) {
+      captured = e.message;
+    }
+    if (!captured) throw new Error('debería lanzar error');
+    if (!/no se ha podido comprobar/i.test(captured)) throw new Error(`mensaje poco honesto: ${captured}`);
+    if (/QUOTA_EXCEEDED|503/.test(captured)) throw new Error(`fuga de detalle técnico: ${captured}`);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 export async function run() {
   for (const t of asyncTests) await t();
   const failed = results.filter((r) => !r.ok);

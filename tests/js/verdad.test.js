@@ -70,6 +70,62 @@ ok('HU-23: la versión visible se inyecta desde package.json (sin literales dive
   if (!/^\d+\.\d+\.\d+$/.test(pkg.version)) throw new Error('package.json no tiene una versión semántica');
 });
 
+ok('HU-22/T3a: el Worker declara UNA sola fuente y no queda ninguna rama multi-fuente', () => {
+  const workerFiles = walk(join(root, 'worker', 'src'));
+  // Se buscan identificadores de código (no prosa de comentarios).
+  const forbidden = [
+    /checkGoogleSafeBrowsing/,
+    /checkUrlScan/,
+    /google_safebrowsing/,
+    /GSB_API_KEY/,
+    /urlscan\.io/,
+    /safebrowsing\.googleapis\.com/,
+  ];
+  const offenders = [];
+  for (const p of workerFiles) {
+    const text = read(p);
+    for (const re of forbidden) {
+      if (re.test(text)) offenders.push(`${p.replace(root + '/', '')} (${re})`);
+    }
+  }
+  if (offenders.length) throw new Error(`Fuente no declarada en: ${offenders.join(', ')}`);
+});
+
+ok('T3a: el CORS del Worker no es comodín («*») y usa lista explícita', () => {
+  const index = read(join(root, 'worker', 'src', 'index.js'));
+  if (/Access-Control-Allow-Origin'\s*:\s*'\*'/.test(index)) throw new Error("ACAO comodín en el Worker");
+  if (!/DEFAULT_ALLOWED_ORIGINS/.test(index)) throw new Error('no hay lista blanca de orígenes');
+  if (!/isAllowedOrigin/.test(index)) throw new Error('no hay comprobación de origen permitido');
+});
+
+ok('T3a: el Worker no filtra err.message del proveedor al cliente', () => {
+  const index = read(join(root, 'worker', 'src', 'index.js'));
+  if (/error:\s*err\.message/.test(index)) throw new Error('se devuelve err.message crudo');
+  if (!/ERROR_MESSAGES/.test(index)) throw new Error('no se usa el catálogo de mensajes llanos');
+});
+
+ok('T3a: wrangler.toml declara el binding de rate limiting (30/60 s) y el Durable Object QuotaGuard', () => {
+  const toml = read(join(root, 'worker', 'wrangler.toml'));
+  if (!/\[\[ratelimits\]\]/.test(toml)) throw new Error('falta [[ratelimits]]');
+  if (!/SCAN_RATE_LIMITER/.test(toml)) throw new Error('falta el binding SCAN_RATE_LIMITER');
+  if (!/limit\s*=\s*30/.test(toml) || !/period\s*=\s*60/.test(toml)) throw new Error('el freno por IP debe ser 30/60 s');
+  if (!/\[\[durable_objects\.bindings\]\]/.test(toml)) throw new Error('falta el binding del DO');
+  if (!/class_name\s*=\s*"QuotaGuard"/.test(toml)) throw new Error('falta la clase QuotaGuard');
+  if (!/new_sqlite_classes/.test(toml)) throw new Error('falta la migración SQLite del DO');
+});
+
+ok('T3a: no hay claves ni secretos versionados en el repositorio', () => {
+  const workerToml = read(join(root, 'worker', 'wrangler.toml'))
+    .split('\n')
+    .filter((line) => !line.trim().startsWith('#'))
+    .join('\n');
+  if (/VIRUSTOTAL_API_KEY\s*=/.test(workerToml)) throw new Error('clave VT en wrangler.toml');
+  const gitignore = read(join(root, '.gitignore'));
+  for (const rule of ['.env', '.env.*', '.dev.vars']) {
+    if (!gitignore.includes(rule)) throw new Error(`.gitignore no cubre ${rule}`);
+  }
+});
+
 export function run() {
   const failed = results.filter((r) => !r.ok);
   return { ok: failed.length === 0, tests: results.length, error: failed.map((r) => `${r.name}: ${r.error}`).join(' | ') || null };
