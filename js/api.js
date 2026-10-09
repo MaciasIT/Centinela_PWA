@@ -1,6 +1,7 @@
 /**
  * Centinela — API Client v2
- * Cliente multi-fuente: VirusTotal + Google Safe Browsing + URLScan.io
+ * Cliente de UNA sola fuente de veredicto: VirusTotal (decisión 1A).
+ * Google Safe Browsing y URLScan.io se han retirado por completo.
  * + Reputación local instantánea
  */
 
@@ -21,7 +22,7 @@ export async function checkLocalReputation(url) {
 }
 
 /**
- * Analiza una URL usando el backend multi-fuente
+ * Analiza una URL consultando el Worker (una sola fuente: VirusTotal)
  * @param {string} url - URL a analizar
  * @returns {Promise<object>}
  */
@@ -51,13 +52,7 @@ export async function analyzeUrl(url) {
         clearTimeout(timeout);
 
         if (!response.ok) {
-            if (response.status === 429) {
-                throw new Error('Has hecho demasiadas comprobaciones. Espera un minuto e inténtalo de nuevo.');
-            }
-            if (response.status >= 500) {
-                throw new Error('El servicio no está disponible ahora. Inténtalo en un momento.');
-            }
-            throw new Error(`Error del servidor (${response.status})`);
+            throw await buildErrorMessage(response);
         }
 
         let payload = await response.json();
@@ -84,10 +79,13 @@ export async function analyzeUrl(url) {
     } catch (err) {
         clearTimeout(timeout);
 
+        // Mensaje ya traducido por el Worker: se propaga tal cual (HU-24).
+        if (err && err.userFacing) throw err;
+
         if (err.name === 'AbortError') {
             throw new Error('La comprobación tardó demasiado. Inténtalo de nuevo.');
         }
-        if (!navigator.onLine) {
+        if (typeof navigator !== 'undefined' && navigator.onLine === false) {
             throw new Error('No tienes conexión a Internet. Conéctate y vuelve a intentarlo.');
         }
         if (err instanceof TypeError && err.message === 'Failed to fetch') {
@@ -100,12 +98,50 @@ export async function analyzeUrl(url) {
 // ── Normalizadores ────────────────────────────────────────────────
 
 /**
- * Normaliza respuesta multi-fuente (worker v2) al formato que espera la UI
+ * Traduce la respuesta de error del Worker a un mensaje llano (HU-24).
+ * Nunca expone el código interno ni el detalle del proveedor.
+ * @param {Response} response
+ * @returns {Promise<Error>}
+ */
+async function buildErrorMessage(response) {
+    let code = null;
+    try {
+        const body = await response.json();
+        code = body && body.error && body.error.code ? body.error.code : null;
+    } catch {
+        code = null;
+    }
+
+    const userFacing = (message) => {
+        const err = new Error(message);
+        // El mensaje ya está en lenguaje llano y viene del servidor: no debe
+        // volver a envolverse ni sustituirse por el mensaje genérico de abajo.
+        err.userFacing = true;
+        return err;
+    };
+
+    if (code === 'QUOTA_EXCEEDED' || response.status === 503) {
+        return userFacing('Ahora mismo no se ha podido comprobar este enlace: el servicio está muy solicitado. Inténtalo dentro de un minuto.');
+    }
+    if (code === 'RATE_LIMITED' || response.status === 429) {
+        return userFacing('Has hecho demasiadas comprobaciones. Espera un minuto e inténtalo de nuevo.');
+    }
+    if (code === 'FORBIDDEN_ORIGIN' || response.status === 403) {
+        return userFacing('La aplicación no tiene permiso para comprobar enlaces desde este sitio.');
+    }
+    if (response.status >= 500) {
+        return userFacing('El servicio no está disponible ahora. Inténtalo en un momento.');
+    }
+    return userFacing('No se ha podido comprobar el enlace. Inténtalo de nuevo.');
+}
+
+/**
+ * Normaliza la respuesta del Worker (una sola fuente: VirusTotal) al formato
+ * que espera la UI. Cualquier fuente que no sea VirusTotal se ignora: el Worker
+ * ya no tiene ramas multi-fuente (decisión 1A).
  */
 function normalizeMultiSource(url, payload) {
     const vtResult = payload.results.find(r => r.source === 'virustotal');
-    const gsbResult = payload.results.find(r => r.source === 'google_safebrowsing');
-    const urlscanResult = payload.results.find(r => r.source === 'urlscan');
 
     const result = { url, fromCache: false, sources: [] };
 
@@ -128,24 +164,6 @@ function normalizeMultiSource(url, payload) {
             vtId: vtResult.data.data?.id || null,
         });
         result.sources.push('virustotal');
-    }
-
-    if (gsbResult) {
-        result.gsbSafe = gsbResult.data.safe;
-        result.gsbThreats = gsbResult.data.threats;
-        result.sources.push('google_safebrowsing');
-    }
-
-    if (urlscanResult) {
-        result.urlscanUuid = urlscanResult.data.uuid;
-        result.urlscanPending = urlscanResult.data.pending || false;
-        result.urlscanResultUrl = urlscanResult.data.resultUrl;
-        result.sources.push('urlscan');
-    }
-
-    // Conservar errores para depuración
-    if (payload.errors && payload.errors.length > 0) {
-        result.sourceErrors = payload.errors;
     }
 
     return result;
