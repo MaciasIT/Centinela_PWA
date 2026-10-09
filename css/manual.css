@@ -22,12 +22,12 @@ body {
 .step {
     background: var(--bg-secondary);
     padding: var(--sp-xl);
-    border-radius: var(--radius-lg);
+    border-radius: var(--radius-2xl);
     margin-bottom: var(--sp-xl);
-    border: 1px solid var(--border-color);
+    border: 2px solid var(--border-color);
 }
 .step h2 {
-    font-size: var(--fs-lg);
+    font-size: var(--fs-xl);
     color: var(--color-primary);
     margin-bottom: var(--sp-md);
     display: flex;
@@ -44,13 +44,14 @@ body {
     display: flex;
     align-items: center;
     gap: 15px;
-    padding: var(--sp-md);
-    border-radius: var(--radius-md);
-    background: rgba(255, 255, 255, 0.03);
+    padding: var(--sp-lg);
+    border-radius: var(--radius-xl);
+    background: var(--bg-tertiary);
+    font-size: var(--fs-sm);
 }
 .circulo {
-    width: 24px;
-    height: 24px;
+    width: 28px;
+    height: 28px;
     border-radius: 50%;
     flex-shrink: 0;
 }
