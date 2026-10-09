@@ -109,6 +109,9 @@ ok('T3a: wrangler.toml declara el binding de rate limiting (30/60 s) y el Durabl
   if (!/\[\[ratelimits\]\]/.test(toml)) throw new Error('falta [[ratelimits]]');
   if (!/SCAN_RATE_LIMITER/.test(toml)) throw new Error('falta el binding SCAN_RATE_LIMITER');
   if (!/limit\s*=\s*30/.test(toml) || !/period\s*=\s*60/.test(toml)) throw new Error('el freno por IP debe ser 30/60 s');
+  // C-5 (T3c): namespace_id único. "1001" ya se usó en el probe de la Tanda 3a.
+  if (!/namespace_id\s*=\s*"[^"]+"/.test(toml)) throw new Error('falta namespace_id del binding');
+  if (/namespace_id\s*=\s*"1001"/.test(toml)) throw new Error('namespace_id "1001" ya se usó en el probe (C-5)');
   if (!/\[\[durable_objects\.bindings\]\]/.test(toml)) throw new Error('falta el binding del DO');
   if (!/class_name\s*=\s*"QuotaGuard"/.test(toml)) throw new Error('falta la clase QuotaGuard');
   if (!/new_sqlite_classes/.test(toml)) throw new Error('falta la migración SQLite del DO');

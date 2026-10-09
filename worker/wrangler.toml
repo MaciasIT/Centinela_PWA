@@ -26,9 +26,13 @@ ALLOWED_ORIGINS = "https://centinela-pwa.pages.dev,http://localhost:5173,http://
 # Durable Object `QuotaGuard`, que sí cuenta.
 # El límite por IP se relaja a 30/60 s (arquitectura §5.3.1 A4): el público es
 # móvil (CGNAT) y varios usuarios legítimos comparten IP.
+#
+# namespace_id debe ser ÚNICO en la cuenta. El valor "1001" ya se usó en el
+# probe de verificación de la Tanda 3a (verificacion-binding-ratelimits.md) y
+# podría chocar en el primer despliegue real; se usa uno propio (T3c/C-5).
 [[ratelimits]]
 name = "SCAN_RATE_LIMITER"
-namespace_id = "1001"
+namespace_id = "20261009"
   [ratelimits.simple]
   limit = 30
   period = 60
