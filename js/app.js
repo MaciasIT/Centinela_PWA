@@ -5,11 +5,11 @@
 
 import { analyzeUrl, validateUrl } from './api.js';
 import { scanFromImage } from './scanner.js';
-import { addToHistory, clearHistory } from './history.js';
+import { clearHistory } from './history.js';
 import { getRandomTip } from './tips.js';
 import { shareResult, checkSharedUrl, hapticFeedback } from './share.js';
-import { recordScan, renderStatsScreen } from './stats.js';
-import { classify } from './core/verdict.js';
+import { renderStatsScreen } from './stats.js';
+import { recordScanOutcome } from './core/scan-record.js';
 import { register, navigate, bindNav } from './router.js';
 import * as homeScreen from './screens/home.js';
 import * as resultScreen from './screens/result.js';
@@ -119,10 +119,10 @@ async function analyzeCurrentUrl() {
         const result = await analyzeUrl(currentUrl);
         currentResult = result;
 
-        // ÚNICA clasificación: la misma que usan historial y estadísticas (HU-02).
-        const verdict = classify(result);
-        addToHistory(currentUrl, result);
-        recordScan(currentUrl, verdict);
+        // ÚNICO cableado (HU-02): clasificar → historial → estadísticas, con el
+        // mismo veredicto en los tres sitios. Vive en core/scan-record.js para
+        // que el test de contrato lo ejercite de verdad (no una réplica a mano).
+        const verdict = recordScanOutcome(currentUrl, result);
 
         navigate('result', { result, url: currentUrl, local: result.local });
         if (verdict === 'safe') hapticFeedback('success');

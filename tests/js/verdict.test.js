@@ -8,9 +8,10 @@
  */
 import { parseHTML } from 'linkedom';
 import { classify, verdictInfo, verdictSteps } from '../../js/core/verdict.js';
+import { recordScanOutcome } from '../../js/core/scan-record.js';
 import * as resultScreen from '../../js/screens/result.js';
-import { addToHistory, clearHistory } from '../../js/history.js';
-import { recordScan, getStats } from '../../js/stats.js';
+import { getHistory, clearHistory } from '../../js/history.js';
+import { getStats } from '../../js/stats.js';
 import { buildShareText } from '../../js/share.js';
 
 const results = [];
@@ -115,19 +116,42 @@ function tearDownDom() {
   delete globalThis.window;
 }
 
-ok('HU-02 CONTRATO: pantalla, historial y estadísticas coinciden en el mismo veredicto', () => {
+ok('HU-02 CONTRATO: el cableado real mantiene pantalla, historial y estadísticas en el mismo veredicto', () => {
   for (const f of FIXTURES) {
-    const verdict = classify(f.input);
+    clearHistory();
+    localStorage.removeItem('centinela_stats');
 
-    // 1) PANTALLA DE RESULTADO
-    bootDom();
     const result = {
       positives: f.input.malicious ?? 0,
       suspicious: f.input.suspicious ?? 0,
       total: f.input.total ?? 0,
       url: 'https://contrato.example',
     };
-    resultScreen.mount(document.getElementById('screen-result'), { result, url: result.url });
+    // URL única por caso para no chocar con el dedupe de 5 min del historial.
+    const url = `https://contrato.example/${Math.random()}`;
+
+    // 1) CABLEADO REAL: la MISMA función que usa app.js en producción
+    //    (clasificar → guardar en historial → registrar en estadísticas).
+    //    Ya NO se replica a mano el cableado: se ejercita el de verdad.
+    const verdict = recordScanOutcome(url, result);
+    if (verdict !== f.expected) {
+      throw new Error(`cableado: ${JSON.stringify(f.input)} → ${verdict}, esperado ${f.expected}`);
+    }
+
+    // 2) HISTORIAL: el veredicto guardado es exactamente el que devolvió el cableado.
+    const entry = getHistory()[0];
+    if (!entry || entry.status !== verdict) {
+      throw new Error(`historial: ${entry && entry.status} != ${verdict} para ${JSON.stringify(f.input)}`);
+    }
+
+    // 3) ESTADÍSTICAS: cuentan el mismo veredicto.
+    const stats = getStats();
+    const bucket = { safe: stats.safeCount, warning: stats.warningCount, danger: stats.dangerCount }[verdict];
+    if (bucket !== 1) throw new Error(`estadísticas: bucket ${verdict}=${bucket}, esperado 1`);
+
+    // 4) PANTALLA: mismo veredicto y mismo título que el guardado.
+    bootDom();
+    resultScreen.mount(document.getElementById('screen-result'), { result, url });
     const iconClass = document.getElementById('result-icon').className;
     if (!iconClass.split(/\s+/).includes(verdict)) {
       throw new Error(`pantalla: clase "${iconClass}" no incluye ${verdict} para ${JSON.stringify(f.input)}`);
@@ -137,22 +161,43 @@ ok('HU-02 CONTRATO: pantalla, historial y estadísticas coinciden en el mismo ve
       throw new Error(`pantalla: título "${title}" != "${verdictInfo(verdict).title}"`);
     }
     tearDownDom();
+  }
+  clearHistory();
+});
 
-    // 2) HISTORIAL
-    clearHistory();
-    const entry = addToHistory(`https://hist.example/${Math.random()}`, {
-      positives: result.positives, suspicious: result.suspicious, total: result.total,
-    });
-    if (entry.status !== verdict) throw new Error(`historial: ${entry.status} != ${verdict}`);
+ok('HU-02/H-2: historial y estadísticas cuentan lo mismo (un reescaneo duplicado no infla las estadísticas)', () => {
+  clearHistory();
+  localStorage.removeItem('centinela_stats');
 
-    // 3) ESTADÍSTICAS
-    localStorage.removeItem('centinela_stats');
-    recordScan('https://stats.example', verdict);
-    const stats = getStats();
-    const bucket = { safe: stats.safeCount, warning: stats.warningCount, danger: stats.dangerCount }[verdict];
-    if (bucket !== 1) throw new Error(`estadísticas: bucket ${verdict}=${bucket}, esperado 1`);
+  const url = 'https://duplicado.example';
+  const result = { positives: 0, suspicious: 0, total: 70 };
 
-    clearHistory();
+  recordScanOutcome(url, result); // 1ª vez: entra en historial y cuenta
+  recordScanOutcome(url, result); // reescaneo < 5 min: el historial lo descarta
+
+  const histCount = getHistory().length;
+  const stats = getStats();
+  const statsCount = stats.safeCount + stats.warningCount + stats.dangerCount;
+
+  if (histCount !== 1) throw new Error(`historial: ${histCount} entradas, esperado 1 (dedupe de 5 min)`);
+  if (statsCount !== histCount) {
+    throw new Error(`desincronizados: historial=${histCount}, estadísticas=${statsCount}`);
+  }
+
+  clearHistory();
+  localStorage.removeItem('centinela_stats');
+});
+
+ok('HU-02/H-3: un contador negativo no se lee como «limpio»', () => {
+  const inconsistentes = [
+    { malicious: -1, suspicious: 0, total: 5 },
+    { malicious: 0, suspicious: -2, total: 5 },
+    { malicious: 0, suspicious: 0, total: -5 },
+  ];
+  for (const c of inconsistentes) {
+    const got = classify(c);
+    if (got === 'safe') throw new Error(`dato inconsistente ${JSON.stringify(c)} leído como seguro`);
+    if (got !== 'warning') throw new Error(`${JSON.stringify(c)} → ${got}, esperado warning`);
   }
 });
 
