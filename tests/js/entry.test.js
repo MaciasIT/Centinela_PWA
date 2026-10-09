@@ -123,6 +123,21 @@ ok('HU-12 AC-02: limpia la puntuación pegada al final del enlace', () => {
   if (url !== 'https://ejemplo.com/pagina') throw new Error(`puntuación no limpiada: ${url}`);
 });
 
+/* ── D-3: cuando TODO el contenido del QR es una única URL con puntuación final,
+   debe limpiarse igual que cuando el enlace va embebido en texto. ── */
+
+ok('D-3: un QR que es solo una URL con coma final se limpia igual', () => {
+  const r = resolveQrText('https://ok.test/x,');
+  if (r.status !== 'ok') throw new Error(`se esperaba ok, llegó ${r.status}`);
+  if (r.url !== 'https://ok.test/x') throw new Error(`puntuación final no limpiada: ${r.url}`);
+});
+
+ok('D-3: un QR que es solo una URL con punto final también se limpia', () => {
+  const r = resolveQrText('https://ok.test/y.');
+  if (r.status !== 'ok') throw new Error(`se esperaba ok, llegó ${r.status}`);
+  if (r.url !== 'https://ok.test/y') throw new Error(`puntuación final no limpiada: ${r.url}`);
+});
+
 /* ── HU-12 AC-03: sin ninguna dirección → no hay URL (la app dará aviso llano) ── */
 
 ok('HU-12 AC-03: un texto sin direcciones devuelve null', () => {

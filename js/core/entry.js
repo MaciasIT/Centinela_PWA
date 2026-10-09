@@ -36,9 +36,12 @@ export function resolveQrText(text, validate = validateUrl) {
   const raw = typeof text === 'string' ? text.trim() : '';
   if (raw === '') return { status: 'no-link', message: QR_NO_LINK_MESSAGE };
 
-  // El QR suele contener solo la URL, pero si trae texto alrededor se busca
-  // igualmente la primera dirección válida dentro del contenido.
-  const direct = validate(raw);
+  // El QR suele contener solo la URL, pero puede traer texto alrededor. Cuando
+  // es una única URL también puede llegar con puntuación pegada al final
+  // (`"https://ok.test/x,"`): se limpia aquí igual que en el camino embebido,
+  // para que ambos caminos sean consistentes (D-3).
+  const cleaned = raw.replace(TRAILING_PUNCTUATION, '');
+  const direct = validate(cleaned);
   if (direct && direct.valid) return { status: 'ok', url: direct.url };
 
   const embedded = extractFirstValidUrl(raw, validate);
