@@ -54,9 +54,9 @@ body {
     border-radius: 50%;
     flex-shrink: 0;
 }
-.circulo.verde { background: #10b981; box-shadow: 0 0 10px #10b981; }
-.circulo.naranja { background: #f59e0b; box-shadow: 0 0 10px #f59e0b; }
-.circulo.rojo { background: #ef4444; box-shadow: 0 0 10px #ef4444; }
+.circulo.verde { background: var(--color-safe); box-shadow: 0 0 10px var(--color-safe); }
+.circulo.naranja { background: var(--color-warning); box-shadow: 0 0 10px var(--color-warning); }
+.circulo.rojo { background: var(--color-danger); box-shadow: 0 0 10px var(--color-danger); }
 
 .btn-back {
     display: inline-flex;
