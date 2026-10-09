@@ -14,6 +14,7 @@ const FILTERS = [
   { key: 'safe', label: verdictInfo('safe').plural },
   { key: 'warning', label: verdictInfo('warning').plural },
   { key: 'danger', label: verdictInfo('danger').plural },
+  { key: 'unchecked', label: verdictInfo('unchecked').plural },
 ];
 
 export function mount(container) {

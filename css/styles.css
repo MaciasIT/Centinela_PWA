@@ -878,6 +878,12 @@ textarea, input { font-family: inherit; }
     box-shadow: var(--shadow-glow-warning);
 }
 
+/* T2c: «no comprobado» reutiliza el ámbar de precaución (sin color nuevo) */
+.result-traffic-light.unchecked {
+    background: var(--color-warning-bg);
+    box-shadow: var(--shadow-glow-warning);
+}
+
 .result-title {
     font-size: var(--fs-2xl);
     font-weight: var(--fw-extrabold);
@@ -887,6 +893,7 @@ textarea, input { font-family: inherit; }
 .result-title.safe { color: var(--color-safe); }
 .result-title.danger { color: var(--color-danger); }
 .result-title.warning { color: var(--color-warning); }
+.result-title.unchecked { color: var(--color-warning); }
 
 .result-message {
     font-size: var(--fs-base);
@@ -1566,7 +1573,7 @@ textarea, input { font-family: inherit; }
 
 .stats-cards {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
     gap: var(--space-md);
     margin-bottom: var(--space-xl);
 }
@@ -1595,6 +1602,8 @@ textarea, input { font-family: inherit; }
 
 .stat-safe .stat-number { color: var(--success, #10b981); }
 .stat-danger .stat-number { color: var(--danger, #ef4444); }
+.stat-warning .stat-number { color: var(--warning, #f59e0b); }
+.stat-unchecked .stat-number { color: var(--warning, #f59e0b); }
 
 .stats-bar-container {
     margin-bottom: var(--space-xl);
@@ -1623,6 +1632,7 @@ textarea, input { font-family: inherit; }
 .stats-bar-safe { background: var(--success, #10b981); }
 .stats-bar-suspicious { background: var(--warning, #f59e0b); }
 .stats-bar-danger { background: var(--danger, #ef4444); }
+.stats-bar-unchecked { background: var(--warning, #f59e0b); }
 
 .stats-bar-legend {
     display: flex;

@@ -125,7 +125,8 @@ export function render(result, currentUrl, local) {
   }
 
   if (_els.btnOpenUrl) {
-    _els.btnOpenUrl.style.display = status === 'danger' ? 'none' : 'inline-flex';
+    // No se invita a abrir un enlace que no se ha podido comprobar (T2c).
+    _els.btnOpenUrl.style.display = (status === 'danger' || status === 'unchecked') ? 'none' : 'inline-flex';
   }
 
   renderWhatNow(status);

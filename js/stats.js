@@ -13,6 +13,7 @@ const defaults = {
   safeCount: 0,
   warningCount: 0,
   dangerCount: 0,
+  uncheckedCount: 0,  // T2c: resultados sin datos utilizables (todas las detecciones timeout)
   domains: {},       // { "example.com": 5, "test.com": 2 }
   lastScanDate: null,
 };
@@ -38,7 +39,7 @@ function save(stats) {
 /**
  * Registrar un escaneo completado con el veredicto ÚNICO.
  * @param {string} url - URL escaneada
- * @param {'safe'|'warning'|'danger'} verdict - veredicto de core/verdict.js
+ * @param {'safe'|'warning'|'danger'|'unchecked'} verdict - veredicto de core/verdict.js
  * @param {string} [domain] - dominio extraído (opcional)
  */
 export function recordScan(url, verdict, domain) {
@@ -49,6 +50,7 @@ export function recordScan(url, verdict, domain) {
   if (verdict === 'safe') stats.safeCount += 1;
   else if (verdict === 'danger') stats.dangerCount += 1;
   else if (verdict === 'warning') stats.warningCount += 1;
+  else if (verdict === 'unchecked') stats.uncheckedCount += 1;
 
   let dom = domain;
   if (!dom && url) {
@@ -75,15 +77,16 @@ export function getTopDomains(n = 5) {
     .slice(0, n);
 }
 
-/** Porcentajes por veredicto (misma clasificación de 3 categorías). */
+/** Porcentajes por veredicto (misma clasificación, incluye «sin comprobar»). */
 export function getPercentages() {
   const stats = load();
-  const total = stats.safeCount + stats.warningCount + stats.dangerCount;
-  if (total === 0) return { safe: 0, warning: 0, danger: 0 };
+  const total = stats.safeCount + stats.warningCount + stats.dangerCount + (stats.uncheckedCount || 0);
+  if (total === 0) return { safe: 0, warning: 0, danger: 0, unchecked: 0 };
   return {
     safe: Math.round((stats.safeCount / total) * 100),
     warning: Math.round((stats.warningCount / total) * 100),
     danger: Math.round((stats.dangerCount / total) * 100),
+    unchecked: Math.round(((stats.uncheckedCount || 0) / total) * 100),
   };
 }
 
@@ -100,6 +103,7 @@ export function renderStatsScreen(container) {
   const safe = verdictInfo('safe');
   const warning = verdictInfo('warning');
   const danger = verdictInfo('danger');
+  const unchecked = verdictInfo('unchecked');
 
   container.innerHTML = `
     <div class="stats-screen">
@@ -118,6 +122,10 @@ export function renderStatsScreen(container) {
           <span class="stat-number">${stats.dangerCount}</span>
           <span class="stat-label">${danger.icon} ${danger.label}</span>
         </div>
+        <div class="stat-card stat-unchecked">
+          <span class="stat-number">${stats.uncheckedCount || 0}</span>
+          <span class="stat-label">${unchecked.icon} ${unchecked.label}</span>
+        </div>
       </div>
 
       <div class="stats-bar-container">
@@ -126,11 +134,13 @@ export function renderStatsScreen(container) {
           <div class="stats-bar-segment stats-bar-safe" style="width:${pct.safe}%" title="${safe.label}: ${pct.safe}%"></div>
           <div class="stats-bar-segment stats-bar-suspicious" style="width:${pct.warning}%" title="${warning.label}: ${pct.warning}%"></div>
           <div class="stats-bar-segment stats-bar-danger" style="width:${pct.danger}%" title="${danger.label}: ${pct.danger}%"></div>
+          <div class="stats-bar-segment stats-bar-unchecked" style="width:${pct.unchecked}%" title="${unchecked.label}: ${pct.unchecked}%"></div>
         </div>
         <div class="stats-bar-legend">
           <span>${safe.icon} ${pct.safe}% ${safe.label.toLowerCase()}</span>
           <span>${warning.icon} ${pct.warning}% ${warning.label.toLowerCase()}</span>
           <span>${danger.icon} ${pct.danger}% ${danger.label.toLowerCase()}</span>
+          <span>${unchecked.icon} ${pct.unchecked}% ${unchecked.label.toLowerCase()}</span>
         </div>
       </div>
 
