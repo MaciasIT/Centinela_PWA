@@ -38,3 +38,38 @@ jobs:
         with:
           name: dist
           path: dist/
+
+  # ── T3a · Gate del Worker: los bindings DEBEN llegar al despliegue ──
+  #
+  # Hace IMPOSIBLE el fallo silencioso de wrangler 3, que descarta
+  # `[[ratelimits]]` con un simple aviso y despliega SIN rate limiting.
+  # Si el binding o la clase del DO `QuotaGuard` no aparecen declarados en el
+  # despliegue en seco, este job FALLA (no avisa).
+  worker:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: worker/package-lock.json
+
+      - name: Instalar dependencias del Worker (wrangler >= 4)
+        working-directory: worker
+        run: npm ci
+
+      - name: Gate — el binding de rate limiting y el DO QuotaGuard deben llegar al deploy
+        working-directory: worker
+        run: npm run check:bindings
+
+      # NFR-S6 (HU-34): ningún .env puede estar versionado.
+      - name: NFR-S6 — comprobar que no hay ficheros .env en el repositorio
+        run: |
+          if git ls-files | grep -E '(^|/)\.env($|\.)' ; then
+            echo "::error::Hay ficheros .env versionados en el repositorio"
+            exit 1
+          fi
+          echo "OK: ningún .env versionado"
