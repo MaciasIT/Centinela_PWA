@@ -7,7 +7,8 @@ import { analyzeUrl, validateUrl } from './api.js';
 import { scanFromImage } from './scanner.js';
 import { clearHistory } from './history.js';
 import { getRandomTip } from './tips.js';
-import { shareResult, checkSharedUrl, hapticFeedback } from './share.js';
+import { shareResult, consumeSharedTarget, shareConfirmation, hapticFeedback } from './share.js';
+import { resolveQrText, SHARE_NO_LINK_MESSAGE } from './core/entry.js';
 import { renderStatsScreen } from './stats.js';
 import { recordScanOutcome } from './core/scan-record.js';
 import { register, navigate, bindNav } from './router.js';
@@ -147,15 +148,25 @@ function updateCheckButton() {
 async function openScanner() {
     navigate('scanner', {
         onScan: (decodedText) => {
+            // HU-11 AC-01/AC-03: resolver el QR. Si trae enlace → comprobar;
+            // si no → aviso llano y NINGUNA consulta.
+            const resolved = resolveQrText(decodedText);
+            if (resolved.status !== 'ok') {
+                showToast(resolved.message);
+                return;
+            }
             hapticFeedback('success');
             navigate('main');
-            if (els.urlInput) els.urlInput.value = decodedText;
+            if (els.urlInput) els.urlInput.value = resolved.url;
             updateCheckButton();
-            const validation = validateUrl(decodedText);
-            if (validation.valid) setTimeout(() => analyzeCurrentUrl(), 300);
-            else showToast('QR leído. Comprueba si el contenido es un enlace web.');
+            setTimeout(() => analyzeCurrentUrl(), 300);
         },
-        onError: (errorMsg) => { navigate('main'); showError(errorMsg); }
+        // AC-02: salidas del estado «cámara no disponible».
+        onUpload: () => els.fileInput?.click(),
+        onPaste: () => {
+            navigate('main');
+            setTimeout(() => els.urlInput?.focus(), 0);
+        },
     });
 }
 
@@ -169,12 +180,16 @@ async function handleImageUpload(file) {
     showToast('Buscando código QR en la imagen...');
     try {
         const result = await scanFromImage(file);
-        if (els.urlInput) els.urlInput.value = result;
+        const resolved = resolveQrText(result);
+        if (resolved.status !== 'ok') {
+            showError(resolved.message);
+            return;
+        }
+        if (els.urlInput) els.urlInput.value = resolved.url;
         updateCheckButton();
         hapticFeedback('success');
         showToast('¡Código QR encontrado!');
-        const validation = validateUrl(result);
-        if (validation.valid) setTimeout(() => analyzeCurrentUrl(), 500);
+        setTimeout(() => analyzeCurrentUrl(), 500);
     } catch (err) {
         showError(err.message || 'No se pudo leer el código QR de la imagen.');
     }
@@ -213,7 +228,8 @@ function initEventListeners() {
     els.btnShare?.addEventListener('click', async () => {
         if (currentUrl && currentResult) {
             const result = await shareResult(currentUrl, currentResult);
-            if (result.method === 'clipboard' || result.method === 'clipboard-legacy') showToast('Resultado copiado al portapapeles');
+            const confirmation = shareConfirmation(result.method);
+            if (confirmation) showToast(confirmation);
         }
     });
     els.btnNewCheck?.addEventListener('click', () => {
@@ -328,13 +344,19 @@ function init() {
     homeScreen.renderHistory();
     initEventListeners();
 
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('action') === 'scan') { openScanner(); }
-    const sharedUrl = checkSharedUrl();
-    if (sharedUrl) {
-        els.urlInput.value = sharedUrl;
+    // HU-12 — Web Share Target: si venimos de compartir desde WhatsApp, la
+    // comprobación arranca sola (AC-01/AC-02); si había texto sin enlace, aviso
+    // llano en la portada (AC-03). Si no, atendemos el acceso directo «Escanear QR».
+    const shared = consumeSharedTarget();
+    if (shared.url) {
+        els.urlInput.value = shared.url;
         updateCheckButton();
-        setTimeout(() => analyzeCurrentUrl(), 500);
+        setTimeout(() => analyzeCurrentUrl(), 300);
+    } else if (shared.present) {
+        showToast(SHARE_NO_LINK_MESSAGE);
+    } else {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('action') === 'scan') { openScanner(); }
     }
 }
 

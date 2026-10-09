@@ -15,7 +15,7 @@ self.addEventListener('activate', (event) => {
     event.waitUntil(self.clients.claim());
 });
 
-// Interceptar compartir objetivo (Web Share Target POST)
+// Interceptar compartir objetivo (Web Share Target POST, HU-12)
 self.addEventListener('fetch', (event) => {
     const { request } = event;
     const url = new URL(request.url);
@@ -23,14 +23,27 @@ self.addEventListener('fetch', (event) => {
     if (request.method === 'POST' && url.pathname === '/share-target') {
         event.respondWith(
             (async () => {
-                const formData = await request.formData();
-                const title = formData.get('title') || '';
-                const text = formData.get('text') || '';
-                const sharedUrl = formData.get('url') || '';
-                
-                // Redirigir a la home con parámetros para procesamiento
-                const redirectUrl = `/?title=${encodeURIComponent(title)}&text=${encodeURIComponent(text)}&url=${encodeURIComponent(sharedUrl)}`;
-                return Response.redirect(redirectUrl, 303);
+                let title = '';
+                let text = '';
+                let sharedUrl = '';
+                try {
+                    const formData = await request.formData();
+                    title = formData.get('title') || '';
+                    text = formData.get('text') || '';
+                    sharedUrl = formData.get('url') || '';
+                } catch {
+                    // Si el cuerpo no se puede leer, se sigue a la portada sin datos.
+                }
+
+                // Redirigir (absoluto) a la home con los parámetros a procesar.
+                const redirectUrl = new URL('/share-target', self.location.origin);
+                redirectUrl.searchParams.set('title', title);
+                redirectUrl.searchParams.set('text', text);
+                redirectUrl.searchParams.set('url', sharedUrl);
+                // La app lee los parámetros y limpia la URL (consumeSharedTarget).
+                const target = new URL('/', self.location.origin);
+                target.search = redirectUrl.search;
+                return Response.redirect(target.href, 303);
             })()
         );
     }

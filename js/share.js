@@ -4,6 +4,7 @@
  * El veredicto que se comparte lo calcula core/verdict.js (misma tabla; sin reglas duplicadas, HU-02).
  */
 import { classify, verdictInfo } from './core/verdict.js';
+import { extractFirstValidUrl } from './core/entry.js';
 
 /**
  * Construye el texto llano del veredicto para compartir (función pura, testeable).
@@ -75,27 +76,64 @@ export async function copyToClipboard(text) {
 }
 
 /**
- * Comprueba si la app se abrió mediante Web Share Target (compartir desde otra app)
- * @returns {string|null} - URL compartida o null
+ * Confirma al usuario el resultado de compartir (HU-13 AC-02).
+ * Solo hay confirmación visible cuando se copió al portapapeles (el share nativo
+ * ya muestra su propia interfaz del sistema).
+ * @param {string} method
+ * @returns {string|null}
+ */
+export function shareConfirmation(method) {
+    if (method === 'clipboard' || method === 'clipboard-legacy') {
+        return 'Copiado. Ya puedes pegarlo en WhatsApp';
+    }
+    return null;
+}
+
+/**
+ * Interpreta los parámetros del Web Share Target (HU-12).
+ *
+ * Función PURA (no lee `window`): recibe la cadena de query y devuelve si había
+ * contenido compartido y cuál es el primer enlace válido. Es la que hace posible
+ * probar AC-01/AC-02/AC-03 sin abrir WhatsApp.
+ *
+ * @param {string} search cadena de query (p. ej. `?text=...`)
+ * @returns {{present: boolean, url: string|null, raw: string}}
+ */
+export function parseShareParams(search) {
+    const params = new URLSearchParams(search || '');
+    const raw = params.get('url') || params.get('text') || params.get('title') || '';
+
+    if (!raw) return { present: false, url: null, raw: '' };
+
+    return { present: true, url: extractFirstValidUrl(raw), raw };
+}
+
+/**
+ * Consume el Web Share Target al abrir la app: lee los parámetros, limpia la
+ * URL para no reprocesarlos y devuelve el enlace encontrado (si lo hay).
+ *
+ * @param {Window} [win] ventana (inyectable en tests)
+ * @returns {{present: boolean, url: string|null, raw: string}}
+ */
+export function consumeSharedTarget(win = (typeof window !== 'undefined' ? window : undefined)) {
+    if (!win) return { present: false, url: null, raw: '' };
+
+    const payload = parseShareParams(win.location && win.location.search);
+
+    if (payload.present) {
+        try { win.history.replaceState({}, '', win.location.pathname); } catch { /* sin historial */ }
+    }
+
+    return payload;
+}
+
+/**
+ * Comprueba si la app se abrió mediante Web Share Target y devuelve la URL
+ * compartida (compatibilidad: solo el enlace, o null).
+ * @returns {string|null}
  */
 export function checkSharedUrl() {
-    try {
-        const params = new URLSearchParams(window.location.search);
-        const sharedUrl = params.get('url') || params.get('text') || params.get('title') || null;
-
-        if (sharedUrl) {
-            // Limpiar los params de la URL para no procesarlos de nuevo
-            window.history.replaceState({}, '', window.location.pathname);
-
-            // Extraer URL del texto compartido (puede venir con texto alrededor)
-            const urlMatch = sharedUrl.match(/https?:\/\/[^\s]+/);
-            return urlMatch ? urlMatch[0] : sharedUrl.trim();
-        }
-
-        return null;
-    } catch {
-        return null;
-    }
+    return consumeSharedTarget().url;
 }
 
 /**
