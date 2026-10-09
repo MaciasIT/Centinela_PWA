@@ -1,7 +1,22 @@
 /**
  * Centinela — Share Module
- * Compartir resultados y recibir enlaces compartidos (Web Share Target)
+ * Compartir resultados y recibir enlaces compartidos (Web Share Target).
+ * El veredicto que se comparte lo calcula core/verdict.js (misma tabla; sin reglas duplicadas, HU-02).
  */
+import { classify, verdictInfo } from './core/verdict.js';
+
+/**
+ * Construye el texto llano del veredicto para compartir (función pura, testeable).
+ * @param {string} url
+ * @param {object} result
+ * @returns {string}
+ */
+export function buildShareText(url, result) {
+    const info = verdictInfo(classify(result));
+    const emoji = info.icon;
+    const statusText = info.label.toUpperCase();
+    return `${emoji} He comprobado este enlace con Centinela y es ${statusText}:\n\n${url}\n\n${result.positives || 0}/${result.total || 0} analizadores de VirusTotal lo marcan como peligroso.\n\n🛡️ Comprueba tus enlaces en: centinela-pwa.pages.dev`;
+}
 
 /**
  * Comparte el resultado del análisis vía Web Share API o portapapeles
@@ -9,23 +24,8 @@
  * @param {object} result - Resultado del análisis
  */
 export async function shareResult(url, result) {
-    const isSafe = result.positives === 0;
-    const isDanger = result.positives > 3;
-    const isWarning = result.positives > 0 && result.positives <= 3;
-
-    let emoji, statusText;
-    if (isSafe) {
-        emoji = '✅';
-        statusText = 'SEGURO';
-    } else if (isDanger) {
-        emoji = '🚨';
-        statusText = 'PELIGROSO';
-    } else {
-        emoji = '⚠️';
-        statusText = 'SOSPECHOSO';
-    }
-
-    const shareText = `${emoji} He comprobado este enlace con Centinela y es ${statusText}:\n\n${url}\n\n${result.positives}/${result.total} analizadores de VirusTotal lo marcan como peligroso.\n\n🛡️ Comprueba tus enlaces en: centinela-pwa.pages.dev`;
+    const statusText = verdictInfo(classify(result)).label.toUpperCase();
+    const shareText = buildShareText(url, result);
 
     // Intentar Web Share API (nativo en móvil)
     if (navigator.share) {

@@ -1,7 +1,10 @@
 /**
  * Centinela — Historial de Comprobaciones
- * Gestión del historial en localStorage
+ * Gestión del historial en localStorage.
+ * El veredicto guardado lo calcula SIEMPRE core/verdict.js (misma tabla que la
+ * pantalla de resultado y las estadísticas; ninguna regla duplicada, HU-02).
  */
+import { classify } from './core/verdict.js';
 
 const STORAGE_KEY = 'centinela_history';
 const MAX_ITEMS = 30;
@@ -22,7 +25,7 @@ export function getHistory() {
 /**
  * Guarda una entrada en el historial
  * @param {string} url
- * @param {object} result - Resultado del análisis { positives, total, status }
+ * @param {object} result - Resultado del análisis { positives, suspicious, total }
  */
 export function addToHistory(url, result) {
     try {
@@ -30,8 +33,9 @@ export function addToHistory(url, result) {
         const entry = {
             id: Date.now(),
             url: url,
-            status: result.positives > 3 ? 'danger' : result.positives > 0 ? 'warning' : 'safe',
+            status: classify(result),
             positives: result.positives,
+            suspicious: result.suspicious,
             total: result.total,
             date: new Date().toISOString(),
         };

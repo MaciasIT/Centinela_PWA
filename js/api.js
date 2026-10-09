@@ -72,22 +72,10 @@ export async function analyzeUrl(url) {
         }
 
         // ── Formato legacy (VT directo, v1) ──
-        let data = payload;
-        let retries = 6;
-        while (retries > 0 && isQueuedOrEmpty(data)) {
-            await new Promise(resolve => setTimeout(resolve, 3000));
-            const retryResponse = await fetch(`${API_URL}/api/scan`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url: normalizedUrl })
-            });
-            if (retryResponse.ok) {
-                data = await retryResponse.json();
-            }
-            retries--;
-        }
-
-        const result = normalizeLegacyVT(normalizedUrl, data);
+        // Sin reintentos automáticos en segundo plano (HU-09): si el informe
+        // aún no está listo, se devuelve tal cual (total 0 → precaución) y la
+        // pantalla de carga ofrece un reintento MANUAL a los 8 s.
+        const result = normalizeLegacyVT(normalizedUrl, payload);
         if (result.total > 0) {
             setLocalCache(normalizedUrl, result);
         }
@@ -193,14 +181,6 @@ function normalizeLegacyVT(url, data) {
     };
 }
 
-function isQueuedOrEmpty(data) {
-    if (!data || !data.data) return false;
-    const attr = data.data.attributes || {};
-    const stats = attr.last_analysis_stats || attr.stats || {};
-    const total = (stats.malicious || 0) + (stats.suspicious || 0) + (stats.harmless || 0) + (stats.undetected || 0) + (stats.timeout || 0);
-    return attr.status === 'queued' || attr.status === 'in-progress' || total === 0;
-}
-
 // ── Utilidades ────────────────────────────────────────────────────
 
 export function normalizeUrl(url) {
@@ -213,7 +193,7 @@ export function normalizeUrl(url) {
 
 export function validateUrl(text) {
     if (!text || text.trim().length === 0) {
-        return { valid: false, url: '', reason: 'empty' };
+        return { valid: false, url: '', reason: 'Pega primero un enlace.' };
     }
 
     let url = text.trim();
@@ -224,18 +204,18 @@ export function validateUrl(text) {
     try {
         const parsed = new URL(url);
 
-        if (!parsed.hostname || !parsed.hostname.includes('.')) {
-            return { valid: false, url, reason: 'Eso no parece un enlace web válido.' };
-        }
-
         const localPatterns = ['127.0.0.1', 'localhost', '0.0.0.0', '192.168.', '10.', '172.'];
         if (localPatterns.some(p => parsed.hostname.startsWith(p))) {
-            return { valid: false, url, reason: 'Esa es una dirección de red local, no una web.' };
+            return { valid: false, url, reason: 'Esa dirección es de tu propio ordenador o de tu casa; no hace falta comprobarla.' };
+        }
+
+        if (!parsed.hostname || !parsed.hostname.includes('.')) {
+            return { valid: false, url, reason: 'Esto no parece un enlace web. Por ejemplo: www.tu-banco.es' };
         }
 
         return { valid: true, url: parsed.href, reason: '' };
     } catch {
-        return { valid: false, url, reason: 'Eso no parece un enlace web válido.' };
+        return { valid: false, url, reason: 'Esto no parece un enlace web. Por ejemplo: www.tu-banco.es' };
     }
 }
 

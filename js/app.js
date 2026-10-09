@@ -3,15 +3,17 @@
  * Orquestador de toda la aplicación
  */
 
-import { analyzeUrl, validateUrl, checkLocalReputation } from './api.js';
+import { analyzeUrl, validateUrl } from './api.js';
 import { scanFromImage } from './scanner.js';
 import { addToHistory, clearHistory } from './history.js';
 import { getRandomTip } from './tips.js';
 import { shareResult, checkSharedUrl, hapticFeedback } from './share.js';
 import { recordScan, renderStatsScreen } from './stats.js';
+import { classify } from './core/verdict.js';
 import { register, navigate, bindNav } from './router.js';
 import * as homeScreen from './screens/home.js';
 import * as resultScreen from './screens/result.js';
+import * as loadingScreen from './screens/loading.js';
 import * as scannerScreen from './screens/scanner.js';
 import * as previewScreen from './screens/preview.js';
 import * as dialogScreen from './screens/dialog.js';
@@ -104,26 +106,27 @@ function closeError() {
    ============================================ */
 async function analyzeCurrentUrl() {
     const text = els.urlInput?.value.trim();
-    if (!text) return;
+    if (!text) { showToast('Pega primero un enlace'); return; }
 
     const validation = validateUrl(text);
-    if (!validation.valid) { showError(validation.reason || 'Eso no parece un enlace web válido.'); return; }
+    if (!validation.valid) { showError(validation.reason || 'Esto no parece un enlace web.'); return; }
 
     currentUrl = validation.url;
     hapticFeedback('medium');
-    navigate('loading');
-
-    // Comprobación de reputación local
-    const local = await checkLocalReputation(currentUrl);
+    navigate('loading', { onRetry: () => analyzeCurrentUrl() });
 
     try {
         const result = await analyzeUrl(currentUrl);
         currentResult = result;
+
+        // ÚNICA clasificación: la misma que usan historial y estadísticas (HU-02).
+        const verdict = classify(result);
         addToHistory(currentUrl, result);
-        recordScan(currentUrl, result.positives === 0 ? 'safe' : result.positives > 3 ? 'dangerous' : 'suspicious');
-        navigate('result', { result, url: currentUrl, local: result.local || local });
-        if (result.positives === 0) hapticFeedback('success');
-        else if (result.positives > 3) hapticFeedback('danger');
+        recordScan(currentUrl, verdict);
+
+        navigate('result', { result, url: currentUrl, local: result.local });
+        if (verdict === 'safe') hapticFeedback('success');
+        else if (verdict === 'danger') hapticFeedback('danger');
         else hapticFeedback('warning');
     } catch (err) {
         navigate('main');
@@ -310,6 +313,7 @@ function init() {
     register('settings', { mount: settingsScreen.mount, unmount: settingsScreen.unmount });
     register('stats', { mount: (container) => renderStatsScreen($('stats-container')) });
     register('result', { mount: resultScreen.mount, unmount: resultScreen.unmount });
+    register('loading', { mount: loadingScreen.mount, unmount: loadingScreen.unmount });
     register('scanner', { mount: scannerScreen.mount, unmount: scannerScreen.unmount });
 
     bindNav('.nav-btn[data-screen="main"]', 'main');

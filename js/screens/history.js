@@ -7,12 +7,13 @@
  */
 
 import { getHistory, clearHistory as removeHistory, extractDomain } from '../history.js';
+import { verdictInfo } from '../core/verdict.js';
 
 const FILTERS = [
   { key: 'all', label: 'Todos' },
-  { key: 'safe', label: 'Seguros' },
-  { key: 'warning', label: 'Dudosos' },
-  { key: 'danger', label: 'Peligrosos' },
+  { key: 'safe', label: verdictInfo('safe').plural },
+  { key: 'warning', label: verdictInfo('warning').plural },
+  { key: 'danger', label: verdictInfo('danger').plural },
 ];
 
 export function mount(container) {
@@ -104,8 +105,5 @@ function historyCard(entry) {
 }
 
 function statusLabel(status) {
-  if (status === 'safe') return 'Seguro';
-  if (status === 'warning') return 'Dudoso';
-  if (status === 'danger') return 'Peligroso';
-  return 'Desconocido';
+  return verdictInfo(status).label;
 }

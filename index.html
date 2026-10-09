@@ -165,8 +165,19 @@
                         <div class="ring ring-3"></div>
                     </div>
                 </div>
-                <h2 class="loading-title">Analizando enlace...</h2>
-                <p class="loading-subtitle">Consultando a VirusTotal</p>
+                <h2 class="loading-title">Consultando a VirusTotal…</h2>
+                <p class="loading-subtitle">Suele tardar unos segundos.</p>
+                <p id="loading-timer" class="loading-timer" aria-hidden="true">0 s</p>
+                <ol id="loading-steps" class="loading-steps">
+                    <li class="loading-step" data-step="0">Preparando el enlace</li>
+                    <li class="loading-step" data-step="1">Consultando a VirusTotal</li>
+                    <li class="loading-step" data-step="2">Recogiendo el resultado</li>
+                </ol>
+                <p id="loading-step-text" class="loading-step-text" role="status" aria-live="polite">Preparando el enlace</p>
+                <div id="loading-warning" class="loading-warning" hidden>
+                    <p class="loading-warning-text">La comprobación está tardando más de lo habitual.</p>
+                    <button id="loading-retry" class="btn btn-secondary" type="button">Reintentar</button>
+                </div>
                 <div class="loading-bar">
                     <div class="loading-bar-fill"></div>
                 </div>
@@ -184,6 +195,12 @@
                 </div>
                 <h2 id="result-title" class="result-title">—</h2>
                 <p id="result-message" class="result-message">—</p>
+
+                <!-- ¿Qué hago ahora? (HU-04): 3 pasos concretos según el veredicto -->
+                <button id="btn-what-now" class="btn btn-secondary btn-full" type="button" aria-expanded="false" aria-controls="result-what-now">¿Qué hago ahora?</button>
+                <section id="result-what-now" class="result-what-now" hidden aria-label="Qué hacer ahora">
+                    <ol id="result-what-now-steps" class="what-now-steps"></ol>
+                </section>
 
                 <!-- Aviso de Identidad (Nuevo) -->
                 <div id="result-brand" class="result-brand" style="display: none;">

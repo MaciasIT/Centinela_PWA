@@ -5,6 +5,7 @@
 import { getHistory, extractDomain, formatDate } from '../history.js';
 import { getRandomTip } from '../tips.js';
 import { hapticFeedback } from '../share.js';
+import { verdictInfo } from '../core/verdict.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -57,7 +58,7 @@ export function renderHistory() {
 
   const recent = history.slice(0, 5);
   els.historyList.innerHTML = recent.map(item => {
-    const statusEmoji = item.status === 'safe' ? '✅' : item.status === 'danger' ? '🚨' : '⚠️';
+    const statusEmoji = verdictInfo(item.status).icon;
     const domain = extractDomain(item.url);
     const date = formatDate(item.date);
     return `

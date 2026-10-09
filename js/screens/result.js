@@ -1,10 +1,15 @@
 /**
  * Centinela — Result Screen
- * Renderiza el veredicto del análisis: semáforo, detalles, X-Ray, marca, confianza y acciones
+ * Renderiza el veredicto del análisis: semáforo, explicación siempre visible (HU-03),
+ * «¿Qué hago ahora?» (HU-04), marca, X-Ray y acciones.
+ *
+ * La clasificación y los textos los aporta SIEMPRE core/verdict.js (HU-02/HU-03/HU-04):
+ * esta pantalla no replica ninguna regla de clasificación.
  */
 import { extractDomain } from '../history.js';
 import { checkBrandIdentity } from '../brands.js';
 import { loadGuardianPhone } from './guardian.js';
+import { classify, verdictInfo, verdictSteps } from '../core/verdict.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -35,6 +40,9 @@ export function mount(container, data) {
     btnPreview: $('btn-preview'),
     btnShare: $('btn-share'),
     btnNewCheck: $('btn-new-check'),
+    btnWhatNow: $('btn-what-now'),
+    resultWhatNow: $('result-what-now'),
+    resultWhatNowSteps: $('result-what-now-steps'),
     previewDialog: $('preview-dialog'),
     previewImg: $('preview-img'),
     previewLoading: $('preview-loading'),
@@ -56,31 +64,14 @@ export function render(result, currentUrl, local) {
   const total = result.total || 0;
   const suspicious = result.suspicious || 0;
 
-  let status, icon, title, message;
+  // ÚNICA clasificación (core/verdict.js): pantalla, historial y estadísticas coinciden.
+  const status = classify(result);
+  const info = verdictInfo(status);
+  const icon = info.icon;
+  const title = info.title;
+  let message = info.explanation;
 
-  if (total === 0) {
-    status = 'warning';
-    icon = '⚠️';
-    title = 'Análisis no disponible';
-    message = 'VirusTotal no ha podido analizar este enlace todavía. Puede que sea demasiado nuevo o no esté indexado.';
-  } else if (positives === 0 && suspicious === 0) {
-    status = 'safe';
-    icon = '✅';
-    title = 'Este enlace es seguro';
-    message = `VirusTotal lo ha analizado con ${total} motores y ninguno ha encontrado problemas. Puedes abrirlo con tranquilidad.`;
-  } else if (positives > 3) {
-    status = 'danger';
-    icon = '🚨';
-    title = '¡No abras este enlace!';
-    message = `VirusTotal lo ha marcado como peligroso: ${positives} de ${total} motores lo detectan. Podría ser una estafa, phishing o contener malware.`;
-  } else {
-    status = 'warning';
-    icon = '⚠️';
-    title = 'Ten cuidado con este enlace';
-    message = `VirusTotal ha visto algo sospechoso: ${positives + suspicious} de ${total} motores avisan. Te recomendamos no introducir datos personales en esta web.`;
-  }
-
-  // Enriquecer mensaje si hay razones del veredicto local y no es seguro
+  // Refuerzo local (matiz, nunca cambia el veredicto por sí solo).
   const effectiveLocal = local || result.local;
   if (effectiveLocal && effectiveLocal.reasons && effectiveLocal.reasons.length > 0 && status !== 'safe') {
     message += ` (${effectiveLocal.reasons.join('. ')})`;
@@ -137,11 +128,35 @@ export function render(result, currentUrl, local) {
     _els.btnOpenUrl.style.display = status === 'danger' ? 'none' : 'inline-flex';
   }
 
+  renderWhatNow(status);
   renderTrustLevel(result);
   updateSosButton(status);
   renderTechnicalDetails(result, status);
 
   return { status, positives, total };
+}
+
+/**
+ * HU-04 — Botón «¿Qué hago ahora?»: 3 pasos concretos según el veredicto.
+ * La explicación (HU-03) ya es visible encima, sin desplegar nada.
+ */
+function renderWhatNow(status) {
+  const steps = verdictSteps(status);
+
+  if (_els.btnWhatNow) {
+    _els.btnWhatNow.setAttribute('aria-expanded', 'false');
+    _els.btnWhatNow.onclick = () => {
+      const panel = _els.resultWhatNow;
+      if (!panel) return;
+      const willOpen = panel.hidden;
+      panel.hidden = !willOpen;
+      _els.btnWhatNow.setAttribute('aria-expanded', String(willOpen));
+    };
+  }
+  if (_els.resultWhatNow) _els.resultWhatNow.hidden = true;
+  if (_els.resultWhatNowSteps) {
+    _els.resultWhatNowSteps.innerHTML = steps.map((s) => `<li>${s}</li>`).join('');
+  }
 }
 
 function updateSosButton(status) {
