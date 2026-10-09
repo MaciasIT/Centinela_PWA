@@ -69,6 +69,16 @@ export function getStats() {
   return load();
 }
 
+/**
+ * Reiniciar las estadísticas locales (HU-26 AC-02). Usa la clave canónica del
+ * módulo: ningún otro sitio manipula `centinela_stats` a mano.
+ */
+export function resetStats() {
+  try {
+    localStorage.removeItem(STATS_KEY);
+  } catch {}
+}
+
 /** Obtener top N dominios más escaneados. */
 export function getTopDomains(n = 5) {
   const stats = load();

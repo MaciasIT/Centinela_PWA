@@ -8,6 +8,7 @@
 
 import { saveGuardianPhone, loadGuardianPhone, clearGuardianPhone } from '../screens/guardian.js';
 import { clearHistory as removeHistory } from '../history.js';
+import { resetStats } from '../stats.js';
 
 // Versión única (HU-23): inyectada por Vite desde package.json (define).
 /* global __APP_VERSION__ */
@@ -101,7 +102,7 @@ function bindSettings(container) {
     resetStatsBtn.addEventListener('click', () => {
       const ok = typeof confirm === 'function' ? confirm('¿Reiniciar estadísticas?') : true;
       if (!ok) return;
-      try { localStorage.removeItem('centinela_stats'); } catch {}
+      resetStats();
       guardianStatus.textContent = 'Estadísticas reiniciadas.';
       guardianStatus.className = 'guardian-status guardian-status-ok';
     });
