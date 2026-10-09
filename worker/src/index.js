@@ -1,10 +1,11 @@
 /**
  * Centinela — Cloudflare Worker Backend
  * Proxy multi-fuente: VirusTotal → Google Safe Browsing → URLScan.io
- * Con CORS restrictivo y rate limiting básico
  */
 
-const ALLOWED_ORIGIN_REGEX = /^https:\/\/(centinela-pwa\.pages\.dev|.*\.pages\.dev)$|^http:\/\/localhost(:\d+)?$|^http:\/\/127\.0\.0\.1(:\d+)?$/;
+import pkg from '../../package.json' with { type: 'json' };
+
+const APP_VERSION = pkg.version;
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -262,7 +263,7 @@ export default {
     }
 
     if (request.method === 'GET' && url.pathname === '/health') {
-      return new Response(JSON.stringify({ status: 'ok', timestamp: new Date().toISOString(), version: '2.4.0' }), {
+      return new Response(JSON.stringify({ status: 'ok', timestamp: new Date().toISOString(), version: APP_VERSION }), {
         status: 200,
         headers: { 'Content-Type': 'application/json', ...CORS },
       });
