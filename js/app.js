@@ -12,6 +12,7 @@ import { resolveQrText, SHARE_NO_LINK_MESSAGE } from './core/entry.js';
 import { renderStatsScreen } from './stats.js';
 import { recordScanOutcome } from './core/scan-record.js';
 import { register, navigate, bindNav } from './router.js';
+import { initTheme } from './core/theme.js';
 import * as homeScreen from './screens/home.js';
 import * as resultScreen from './screens/result.js';
 import * as loadingScreen from './screens/loading.js';
@@ -364,6 +365,11 @@ function init() {
         if (urlParams.get('action') === 'scan') { openScanner(); }
     }
 }
+
+// Aplica el tema elegido (o el del sistema) lo antes posible, en cuanto el
+// módulo se evalúa. El CSS ya trae el claro por defecto y respeta
+// `prefers-color-scheme`, así que sin JavaScript la app sigue viéndose bien.
+initTheme();
 
 // Arrancar cuando el DOM esté listo
 if (document.readyState === 'loading') {

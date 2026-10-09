@@ -9,6 +9,7 @@
 import { saveGuardianPhone, loadGuardianPhone, clearGuardianPhone } from '../screens/guardian.js';
 import { clearHistory as removeHistory } from '../history.js';
 import { resetStats } from '../stats.js';
+import { getStoredPreference, setStoredPreference, applyTheme } from '../core/theme.js';
 
 // Versión única (HU-23): inyectada por Vite desde package.json (define).
 /* global __APP_VERSION__ */
@@ -25,9 +26,22 @@ export function unmount() {
 
 function settingsMarkup() {
   const guardianValue = loadGuardianPhone() || '';
+  const themePref = getStoredPreference();
+  const checked = (value) => (themePref === value ? ' checked' : '');
   return `
     <div class="settings-screen">
       <h2>Configuración</h2>
+
+      <div class="settings-section">
+        <h3>🎨 Tema</h3>
+        <p class="settings-hint">Elige cómo se ve Centinela. «Sistema» sigue el ajuste de tu teléfono.</p>
+        <fieldset class="theme-choice">
+          <legend class="sr-only">Tema de la aplicación</legend>
+          <label class="theme-option"><input type="radio" name="theme-preference" value="light"${checked('light')}> Claro</label>
+          <label class="theme-option"><input type="radio" name="theme-preference" value="dark"${checked('dark')}> Oscuro</label>
+          <label class="theme-option"><input type="radio" name="theme-preference" value="system"${checked('system')}> Sistema</label>
+        </fieldset>
+      </div>
 
       <div class="settings-section">
         <h3>👼 Modo Ángel de la Guarda</h3>
@@ -64,6 +78,16 @@ function bindSettings(container) {
   const guardianStatus = container.querySelector('#guardian-status');
   const clearHistoryBtn = container.querySelector('#btn-clear-history');
   const resetStatsBtn = container.querySelector('#btn-reset-stats');
+
+  // Selector de tema (Claro / Oscuro / Sistema), persistente entre sesiones.
+  const themeRadios = container.querySelectorAll('input[name="theme-preference"]');
+  themeRadios.forEach((radio) => {
+    radio.addEventListener('change', () => {
+      if (!radio.checked) return;
+      setStoredPreference(radio.value);
+      applyTheme(radio.value);
+    });
+  });
 
   if (saveGuardianBtn && guardianInput && guardianStatus) {
     saveGuardianBtn.addEventListener('click', async () => {
