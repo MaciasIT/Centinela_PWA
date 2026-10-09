@@ -10,6 +10,10 @@ import { saveGuardianPhone, loadGuardianPhone, clearGuardianPhone } from '../scr
 import { clearHistory as removeHistory } from '../history.js';
 import * as stats from '../stats.js';
 
+// Versión única (HU-23): inyectada por Vite desde package.json (define).
+/* global __APP_VERSION__ */
+const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.0.0-dev';
+
 export function mount(container) {
   container.innerHTML = settingsMarkup();
   bindSettings(container);
@@ -47,7 +51,7 @@ function settingsMarkup() {
 
       <div class="settings-section">
         <h3>ℹ️ Acerca de</h3>
-        <p class="settings-hint">Centinela PWA · versión 2.3.0<br>Desarrollado por <strong>Macias IT</strong>.<br>Análisis con VirusTotal y vista previa aislada.</p>
+        <p class="settings-hint">Centinela PWA · versión ${APP_VERSION}<br>Desarrollado por <strong>Macias IT</strong>.<br>Análisis con VirusTotal y vista previa aislada.</p>
       </div>
     </div>
   `;
