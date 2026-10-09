@@ -1263,6 +1263,20 @@ textarea, input { font-family: inherit; }
     line-height: var(--lh-relaxed);
 }
 
+/* ---- Info dialog: footer con enlace al manual (extraído del atributo
+   `style=` inline para cumplir la CSP estricta, T3b) ---- */
+.info-footer {
+    padding-top: var(--sp-md);
+}
+
+.manual-link {
+    text-decoration: none;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+}
+
 .info-version {
     margin-top: var(--sp-xl);
     padding-top: var(--sp-lg);
@@ -1312,6 +1326,15 @@ textarea, input { font-family: inherit; }
 /* ---- Utility: Hidden ---- */
 .hidden {
     display: none !important;
+}
+
+/* ---- Utility: Oculto sin !important (CSP, T3b) ----
+   Se usa para el estado inicial que el JS alterna con `el.style.display`.
+   `.hidden` lleva `!important` y ganaría al estilo en línea que fija el JS,
+   impidiendo mostrar de nuevo el elemento; por eso estos ocultados iniciales
+   usan `.is-hidden` (sin !important): el estilo en línea del JS lo sobreescribe. */
+.is-hidden {
+    display: none;
 }
 
 /* ---- Utility: Animation helpers ---- */
@@ -1683,4 +1706,12 @@ textarea, input { font-family: inherit; }
     font-size: 0.75rem;
     color: var(--text-muted);
     text-align: center;
+}
+
+/* ---- Botón reintentar del diálogo de error (extraído del `style=` inline, T3b).
+   Se conserva el valor literal `var(--space-lg)` tal cual estaba en el HTML:
+   esa variable no está definida (typo histórico por `--sp-lg`), así que no
+   aplica margen alguno; T3b no cambia el layout, solo saca el estilo del HTML. */
+.btn-retry {
+    margin-top: var(--space-lg);
 }

@@ -203,7 +203,7 @@
                 </section>
 
                 <!-- Aviso de Identidad (Nuevo) -->
-                <div id="result-brand" class="result-brand" style="display: none;">
+                <div id="result-brand" class="result-brand is-hidden">
                     <div class="brand-badge">
                         <span id="brand-icon">🛡️</span>
                         <span id="brand-msg">Identidad Verificada</span>
@@ -212,7 +212,7 @@
                 </div>
 
                 <!-- Aviso de Antigüedad (Nuevo) -->
-                <div id="result-trust" class="result-trust" style="display: none;">
+                <div id="result-trust" class="result-trust is-hidden">
                     <div class="trust-badge">
                         <span id="trust-icon">🕰️</span>
                         <span id="trust-msg">Sitio Establecido</span>
@@ -226,7 +226,7 @@
                 </div>
                 
                 <!-- X-Ray / Redirección -->
-                <div id="result-xray" class="result-xray" style="display: none;">
+                <div id="result-xray" class="result-xray is-hidden">
                     <div class="xray-header">
                         <span class="xray-tag">🕵️ EFECTO RAYOS X</span>
                         <span class="xray-title-text">Destino real detectado:</span>
@@ -259,7 +259,7 @@
                         </svg>
                         Vista Previa
                     </button>
-                    <button id="btn-sos" class="btn btn-warning" style="display: none;">
+                    <button id="btn-sos" class="btn btn-warning is-hidden">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
                         </svg>
@@ -344,8 +344,8 @@
                         <h3>💬 Consejo rápido</h3>
                         <p>Cuando recibas un enlace sospechoso en WhatsApp o SMS, pulsa <strong>Compartir → Centinela</strong> para comprobarlo al instante.</p>
                     </div>
-                    <div class="info-footer" style="padding-top: var(--sp-md);">
-                        <a href="manual.html" class="btn btn-primary" style="text-decoration: none; width: 100%; display: flex; justify-content: center; gap: 8px;">
+                    <div class="info-footer">
+                        <a href="manual.html" class="btn btn-primary manual-link">
                             📖 Leer Guía de Seguridad
                         </a>
                     </div>
@@ -372,7 +372,7 @@
                 </div>
                 <div class="dialog-body">
                     <p id="error-message" aria-live="polite">Ha ocurrido un error inesperado.</p>
-                    <button id="btn-error-retry" class="btn btn-primary" style="margin-top:var(--space-lg)">Reintentar</button>
+                    <button id="btn-error-retry" class="btn btn-primary btn-retry">Reintentar</button>
                 </div>
             </div>
         </div>
@@ -380,11 +380,11 @@
         <!-- ============================
              DIALOG PREVIEW
              ============================ -->
-        <div id="preview-dialog" class="overlay hidden" role="dialog" aria-labelledby="preview-title" onclick="if(event.target===this){this.classList.add('hidden');document.getElementById('preview-img').src='';document.getElementById('btn-preview').disabled=false;}">
+        <div id="preview-dialog" class="overlay hidden" role="dialog" aria-labelledby="preview-title">
             <div class="dialog dialog-preview">
                 <div class="dialog-header">
                     <h2 id="preview-title" class="dialog-title">📸 Vista Previa Segura</h2>
-                    <button id="btn-close-preview" class="btn-icon" aria-label="Cerrar" onclick="document.getElementById('preview-dialog').classList.add('hidden');document.getElementById('preview-img').src='';document.getElementById('btn-preview').disabled=false;">
+                    <button id="btn-close-preview" class="btn-icon" aria-label="Cerrar">
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <line x1="18" y1="6" x2="6" y2="18"></line>
                             <line x1="6" y1="6" x2="18" y2="18"></line>

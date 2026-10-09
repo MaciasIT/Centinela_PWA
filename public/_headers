@@ -1,0 +1,25 @@
+# Centinela — cabeceras de Cloudflare Pages (HU-32 · arquitectura §8.6)
+#
+# ⚠ RC-01 — NO copiar estas cabeceras al Worker, ni las del Worker aquí:
+#   · Aquí (sitio Pages) `camera=(self)`: el frontend usa la cámara para el
+#     escáner QR (HU-11). Con `camera=()` el navegador bloquearía getUserMedia
+#     y el escáner no funcionaría nunca.
+#   · En el Worker (respuestas JSON) `camera=()`: la API no usa cámara jamás.
+#   Ver la directiva `Permissions-Policy` más abajo: difiere a propósito.
+#
+# Recursos externos (Tanda 5): la tipografía autoalojada (RC-02) hará que
+# style-src/font-src queden en 'self', eliminando fonts.googleapis.com y
+# fonts.gstatic.com (hoy aún presentes en index.html). NO abrir aquí orígenes
+# para taparlo. `img-src` incluye https://s.wordpress.com a propósito: es el
+# servicio mshots que sirve la vista previa de la web (js/screens/preview.js).
+#
+# connect-src: la arquitectura §8.6 escribe también el Worker de staging con un
+# marcador literal (<subdominio>) que no es una fuente válida. Se OMITE ese
+# marcador inválido y se deja solo la URL real de producción; al conocer el
+# subdominio de staging (HU-35) debe añadirse su origen aquí.
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data: https://s.wordpress.com; connect-src 'self' https://centinela-api.michelmacias-it.workers.dev; worker-src 'self'; manifest-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; upgrade-insecure-requests
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: no-referrer
+  Permissions-Policy: geolocation=(), microphone=(), camera=(self)
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
