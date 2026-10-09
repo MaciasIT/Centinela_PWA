@@ -23,9 +23,15 @@ export function getHistory() {
 }
 
 /**
- * Guarda una entrada en el historial
+ * Guarda una entrada en el historial.
+ *
+ * Devuelve la entrada guardada, o `null` si se descartó por ser un reescaneo
+ * duplicado de la misma URL en menos de 5 min. Ese `null` es lo que permite a
+ * `core/scan-record.js` mantener historial y estadísticas contando lo mismo (H-2).
+ *
  * @param {string} url
  * @param {object} result - Resultado del análisis { positives, suspicious, total }
+ * @returns {object|null}
  */
 export function addToHistory(url, result) {
     try {
@@ -46,13 +52,13 @@ export function addToHistory(url, result) {
             h => h.url === url && new Date(h.date).getTime() > fiveMinAgo
         );
 
-        if (!isDuplicate) {
-            history.unshift(entry);
-            if (history.length > MAX_ITEMS) {
-                history.length = MAX_ITEMS;
-            }
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
+        if (isDuplicate) return null;
+
+        history.unshift(entry);
+        if (history.length > MAX_ITEMS) {
+            history.length = MAX_ITEMS;
         }
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
 
         return entry;
     } catch {
