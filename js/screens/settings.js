@@ -8,7 +8,6 @@
 
 import { saveGuardianPhone, loadGuardianPhone, clearGuardianPhone } from '../screens/guardian.js';
 import { clearHistory as removeHistory } from '../history.js';
-import * as stats from '../stats.js';
 
 // Versión única (HU-23): inyectada por Vite desde package.json (define).
 /* global __APP_VERSION__ */
