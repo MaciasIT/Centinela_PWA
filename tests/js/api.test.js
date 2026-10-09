@@ -1,4 +1,5 @@
 import { validateUrl, normalizeUrl, analyzeUrl } from '../../js/api.js';
+import { classify } from '../../js/core/verdict.js';
 
 const results = [];
 function ok(name, fn) {
@@ -8,10 +9,10 @@ function ok(name, fn) {
 
 const asyncTests = [];
 function okAsync(name, fn) {
-  asyncTests.push((async () => {
+  asyncTests.push(async () => {
     try { await fn(); results.push({ ok: true, name }); }
     catch (e) { results.push({ ok: false, name, error: String(e) }); }
-  })());
+  });
 }
 
 ok('validateUrl acepta http y https válidos', () => {
@@ -97,8 +98,54 @@ okAsync('HU-09: analyzeUrl hace UNA sola consulta a /api/scan (sin reintentos si
   }
 });
 
+/* ── T2c: el cliente propaga el recuento de timeout (veracidad del veredicto) ── */
+
+okAsync('T2c: analyzeUrl propaga el timeout para no fingir veredicto cuando no hay datos', async () => {
+  const originalFetch = globalThis.fetch;
+  const payload = {
+    data: { attributes: { status: 'completed', last_analysis_stats: { malicious: 0, suspicious: 0, harmless: 0, undetected: 0, timeout: 5 } } },
+  };
+  globalThis.fetch = async (url) => {
+    const u = String(url);
+    if (u.includes('/api/local-check')) return { ok: true, json: async () => ({}) };
+    if (u.includes('/api/scan')) return { ok: true, json: async () => payload };
+    throw new Error(`fetch inesperado: ${u}`);
+  };
+  try {
+    if (globalThis.localStorage) globalThis.localStorage.removeItem('centinela_cache');
+    const result = await analyzeUrl(`https://todo-timeout.example/${Date.now()}`);
+    if (result.timeout !== 5) throw new Error(`timeout esperado 5, obtuve ${result.timeout}`);
+    if (result.total !== 5) throw new Error(`total esperado 5, obtuve ${result.total}`);
+    const verdict = classify(result);
+    if (verdict !== 'unchecked') throw new Error(`clasificación ${verdict}, esperado unchecked (no safe)`);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+okAsync('T2c: un resultado sin datos (todo timeout) no se cachea, para que «volver a intentarlo» reconsulte', async () => {
+  const originalFetch = globalThis.fetch;
+  let scanCalls = 0;
+  const payload = { data: { attributes: { status: 'completed', last_analysis_stats: { malicious: 0, suspicious: 0, harmless: 0, undetected: 0, timeout: 5 } } } };
+  globalThis.fetch = async (url) => {
+    const u = String(url);
+    if (u.includes('/api/local-check')) return { ok: true, json: async () => ({}) };
+    if (u.includes('/api/scan')) { scanCalls += 1; return { ok: true, json: async () => payload }; }
+    throw new Error(`fetch inesperado: ${u}`);
+  };
+  try {
+    if (globalThis.localStorage) globalThis.localStorage.removeItem('centinela_cache');
+    const url = `https://sin-cache.example/${Date.now()}`;
+    await analyzeUrl(url);
+    await analyzeUrl(url);
+    if (scanCalls !== 2) throw new Error(`esperaba 2 consultas (no se cachea un resultado sin datos), hubo ${scanCalls}`);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 export async function run() {
-  await Promise.all(asyncTests);
+  for (const t of asyncTests) await t();
   const failed = results.filter((r) => !r.ok);
   return { ok: failed.length === 0, tests: results.length, error: failed.map((r) => `${r.name}: ${r.error}`).join(' | ') || null };
 }

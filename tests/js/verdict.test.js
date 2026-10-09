@@ -31,6 +31,7 @@ const FIXTURES = [
   { input: { malicious: 3, suspicious: 0, total: 70 }, expected: 'warning', why: 'malicious > 3 es estricto' },
   { input: { malicious: 1, suspicious: 0, total: 70 }, expected: 'warning' },
   { input: { malicious: 0, suspicious: 0, total: 0 }, expected: 'warning', why: 'sin datos = precaución, nunca seguro' },
+  { input: { malicious: 0, suspicious: 0, timeout: 70, total: 70 }, expected: 'unchecked', why: 'T2c: todas las detecciones son timeout → no comprobado, jamás seguro' },
 ];
 
 ok('HU-02: la tabla única clasifica todos los casos canónicos', () => {
@@ -125,6 +126,7 @@ ok('HU-02 CONTRATO: el cableado real mantiene pantalla, historial y estadística
     const result = {
       positives: f.input.malicious ?? 0,
       suspicious: f.input.suspicious ?? 0,
+      timeout: f.input.timeout ?? 0,
       total: f.input.total ?? 0,
       url: 'https://contrato.example',
     };
@@ -147,7 +149,7 @@ ok('HU-02 CONTRATO: el cableado real mantiene pantalla, historial y estadística
 
     // 3) ESTADÍSTICAS: cuentan el mismo veredicto.
     const stats = getStats();
-    const bucket = { safe: stats.safeCount, warning: stats.warningCount, danger: stats.dangerCount }[verdict];
+    const bucket = { safe: stats.safeCount, warning: stats.warningCount, danger: stats.dangerCount, unchecked: stats.uncheckedCount }[verdict];
     if (bucket !== 1) throw new Error(`estadísticas: bucket ${verdict}=${bucket}, esperado 1`);
 
     // 4) PANTALLA: mismo veredicto y mismo título que el guardado.
@@ -217,6 +219,79 @@ ok('HU-02/H-3: un contador negativo no se lee como «limpio»', () => {
     if (got === 'safe') throw new Error(`dato inconsistente ${JSON.stringify(c)} leído como seguro`);
     if (got !== 'warning') throw new Error(`${JSON.stringify(c)} → ${got}, esperado warning`);
   }
+});
+
+/* ── T2c · Veracidad del veredicto sin datos (observación O-2) ── */
+
+ok('T2c: un resultado 100% timeout NO es «seguro» (no fingimos veredicto)', () => {
+  const casos = [
+    { malicious: 0, suspicious: 0, timeout: 5, total: 5 },
+    { positives: 0, timeout: 70, total: 70 },
+    { malicious: 0, suspicious: 0, harmless: 0, undetected: 0, timeout: 70, total: 70 },
+  ];
+  for (const c of casos) {
+    const got = classify(c);
+    if (got === 'safe') throw new Error(`todas las detecciones son timeout y se leyó como seguro: ${JSON.stringify(c)}`);
+    if (got !== 'unchecked') throw new Error(`${JSON.stringify(c)} → ${got}, esperado unchecked`);
+  }
+});
+
+ok('T2c/§5.1: total === 0 sigue siendo precaución, NO «no comprobado»', () => {
+  const casos = [{ malicious: 0, suspicious: 0, total: 0 }, { positives: 0, total: 0 }, {}];
+  for (const c of casos) {
+    const got = classify(c);
+    if (got !== 'warning') throw new Error(`${JSON.stringify(c)} → ${got}, esperado warning (§5.1 no cambia)`);
+  }
+});
+
+ok('T2c: la tabla solo mira timeout cuando NO hay ninguna detección real', () => {
+  // Con una sola detección real (harmless/undetected), aunque haya timeout, no es «no comprobado».
+  const conDetDeteccion = { malicious: 0, suspicious: 0, harmless: 60, undetected: 8, timeout: 2, total: 70 };
+  const got = classify(conDetDeteccion);
+  if (got !== 'safe') throw new Error(`con detecciones reales debería ser safe, obtuve ${got}`);
+  // Y el caso legítimo de §5.1 (VT respondió, nada raro) sigue siendo safe.
+  if (classify({ malicious: 0, suspicious: 0, total: 70 }) !== 'safe') throw new Error('el caso legítimo §5.1 dejó de ser safe');
+});
+
+ok('HU-03/HU-04: «no comprobado» se explica en llano y no ofrece los pasos del verde', () => {
+  const info = verdictInfo('unchecked');
+  if (!/no hemos podido comprobar/i.test(info.title)) throw new Error(`título no honesto: ${info.title}`);
+  if (!info.explanation || !/no sabemos|no.*seguro/i.test(info.explanation)) throw new Error(`explicación no honesta: ${info.explanation}`);
+  if (!/^#[0-9A-Fa-f]{6}$/.test(info.color || '')) throw new Error('sin color semántico válido');
+  const steps = verdictSteps('unchecked');
+  if (!Array.isArray(steps) || steps.length !== 3) throw new Error('no comprobado no tiene 3 pasos');
+  if (steps.join('|') === verdictSteps('safe').join('|')) throw new Error('los pasos del no comprobado son los del verde');
+  if (!/intenta/i.test(steps.join(' '))) throw new Error('el no comprobado no ofrece volver a intentarlo');
+});
+
+ok('T2c CONTRATO: un resultado no comprobado se presenta igual en pantalla, historial y estadísticas', () => {
+  clearHistory();
+  localStorage.removeItem('centinela_stats');
+
+  const url = `https://sin-comprobar.example/${Math.random()}`;
+  const result = { positives: 0, suspicious: 0, timeout: 70, total: 70, url };
+
+  const verdict = recordScanOutcome(url, result);
+  if (verdict !== 'unchecked') throw new Error(`cableado: ${verdict}, esperado unchecked`);
+
+  const entry = getHistory()[0];
+  if (!entry || entry.status !== 'unchecked') throw new Error(`historial: ${entry && entry.status} != unchecked`);
+
+  const stats = getStats();
+  if (stats.uncheckedCount !== 1) throw new Error(`estadísticas: uncheckedCount=${stats.uncheckedCount}, esperado 1`);
+  if (stats.safeCount !== 0) throw new Error('un no comprobado se contó como seguro');
+
+  bootDom();
+  resultScreen.mount(document.getElementById('screen-result'), { result, url });
+  const iconClass = document.getElementById('result-icon').className.split(/\s+/);
+  if (!iconClass.includes('unchecked')) throw new Error(`pantalla: clase "${iconClass.join(' ')}" no incluye unchecked`);
+  if (iconClass.includes('safe')) throw new Error('pantalla: un no comprobado se pintó como seguro');
+  const title = document.getElementById('result-title').textContent;
+  if (title !== verdictInfo('unchecked').title) throw new Error(`pantalla: título "${title}" != "${verdictInfo('unchecked').title}"`);
+  tearDownDom();
+
+  clearHistory();
+  localStorage.removeItem('centinela_stats');
 });
 
 export function run() {
