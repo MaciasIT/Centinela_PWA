@@ -90,8 +90,9 @@ export async function checkLocalReputation(targetUrl) {
     reasons.push('Dominio muy largo');
   }
 
-  // Edad del dominio
-  const ageDays = domainAgeDays(cleanHost);
+  // Edad del dominio (RDAP). DEBE esperarse: sin `await`, `ageDays` es una
+  // promesa y la señal nunca se aplica (bug C-4 de la Tanda 3a).
+  const ageDays = await domainAgeDays(cleanHost);
   if (ageDays === 0) {
     score -= 20;
     reasons.push('Dominio muy reciente');
