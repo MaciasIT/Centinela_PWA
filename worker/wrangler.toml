@@ -1,10 +1,47 @@
+# Centinela — Worker de Cloudflare (API de veredicto)
+#
+# ── REQUISITO: wrangler >= 4 ─────────────────────────────────────────
+# Con wrangler 3 el binding [[ratelimits]] se DESCARTA EN SILENCIO (aviso y
+# «No bindings found») y el deploy sigue SIN rate limiting. Es exactamente el
+# patrón de fallo que la v1 cometió. Evidencia: `verificacion-binding-ratelimits.md`.
+# Por eso el pipeline ejecuta `scripts/check-bindings.mjs`, que FALLA si el
+# binding no llega al despliegue en seco (ver .github/workflows/ci.yml).
+
 name = "centinela-api"
 main = "src/index.js"
 compatibility_date = "2025-07-01"
 
+# ── Orígenes permitidos por CORS (HU-30) ─────────────────────────────
+# Lista blanca explícita. Sin comodín ni expresiones regulares laxas.
+# El Worker admite además los previews de Pages cuyo subdominio es un hash:
+# https://<hash>.centinela-pwa.pages.dev (patrón estricto y anclado en el código).
 [vars]
-# VirusTotal API key (obligatoria)
-# VIRUSTOTAL_API_KEY = "tu_clave_vt"
+ALLOWED_ORIGINS = "https://centinela-pwa.pages.dev,http://localhost:5173,http://localhost:8787"
 
-# Google Safe Browsing API key (opcional — fallback #1)
-# GSB_API_KEY = "tu_clave_gsb"
+# ── Freno de inundación por IP (HU-29) ───────────────────────────────
+# ¡OJO! Este binding NO es un contador exacto: es *permissive* y de consistencia
+# eventual (verificado: 17 peticiones sobre un límite de 4 → 0 bloqueos).
+# NO garantiza el techo de cuota de VirusTotal. Su ÚNICA función es evitar que
+# un único actor acapare. El techo de cuota (4/min · 500/día) lo impone el
+# Durable Object `QuotaGuard`, que sí cuenta.
+# El límite por IP se relaja a 30/60 s (arquitectura §5.3.1 A4): el público es
+# móvil (CGNAT) y varios usuarios legítimos comparten IP.
+[[ratelimits]]
+name = "SCAN_RATE_LIMITER"
+namespace_id = "1001"
+  [ratelimits.simple]
+  limit = 30
+  period = 60
+
+# ── Contador global EXACTO de cuota (mecanismo base del MVP, arquitectura §5.3.3)
+[[durable_objects.bindings]]
+name = "QUOTA_GUARD"
+class_name = "QuotaGuard"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["QuotaGuard"]
+
+# ── Secretos ─────────────────────────────────────────────────────────
+# NINGUNA clave vive aquí. VIRUSTOTAL_API_KEY se configura SOLO con:
+#   wrangler secret put VIRUSTOTAL_API_KEY
