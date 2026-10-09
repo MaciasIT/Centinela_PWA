@@ -1,8 +1,12 @@
 import { Html5Qrcode } from 'html5-qrcode';
+import { cameraUnavailableMessage } from './core/entry.js';
 
 /**
  * Centinela — QR Scanner Module
- * Integración con html5-qrcode para escaneo de cámara e imagen
+ * Integración con html5-qrcode para escaneo de cámara e imagen.
+ *
+ * La librería se empaqueta localmente (Vite): no hay recursos externos, así que
+ * la CSP estricta (`script-src 'self'`) no se rompe.
  */
 
 let scanner = null;
@@ -67,21 +71,8 @@ export async function startScanner(containerId, onSuccess, onError) {
 
         isRunning = true;
     } catch (err) {
-
-        let friendlyMessage;
-        const msg = err.message || '';
-
-        if (msg.includes('Permission') || msg.includes('NotAllowedError')) {
-            friendlyMessage = 'Necesitamos acceso a tu cámara para escanear QR. Por favor, permite el acceso en los ajustes de tu navegador.';
-        } else if (msg.includes('NotFoundError') || msg.includes('cámara')) {
-            friendlyMessage = 'No se ha encontrado una cámara. Puedes subir una imagen del código QR en su lugar.';
-        } else if (msg.includes('NotReadableError') || msg.includes('TrackStartError')) {
-            friendlyMessage = 'La cámara está siendo usada por otra aplicación. Ciérrala e inténtalo de nuevo.';
-        } else {
-            friendlyMessage = msg || 'No se pudo iniciar el escáner de QR.';
-        }
-
-        if (onError) onError(friendlyMessage);
+        // Mensaje llano que SIEMPRE ofrece subir una imagen (HU-11 AC-02).
+        if (onError) onError(cameraUnavailableMessage(err && err.message));
     }
 }
 
@@ -101,34 +92,38 @@ export async function stopScanner() {
 }
 
 /**
- * Escanea un QR desde un archivo de imagen
- * @param {File} imageFile - Archivo de imagen
- * @returns {Promise<string>} - Texto decodificado del QR
+ * Escanea un QR desde un archivo de imagen.
+ *
+ * Cada intento es **aislado** (HU-15 AC-03): crea su propio contenedor temporal
+ * con un id único, lo limpia pase lo que pase y no reutiliza estado del intento
+ * anterior. Además se corrige el fallo que impedía que la subida funcionara: el
+ * `Html5Qrcode` se construía apuntando a un elemento que aún no existía.
+ *
+ * @param {File|Blob} imageFile archivo de imagen
+ * @param {typeof Html5Qrcode} [Impl] implementación inyectable (tests)
+ * @returns {Promise<string>} texto decodificado del QR
  */
-export async function scanFromImage(imageFile) {
+export async function scanFromImage(imageFile, Impl = Html5Qrcode) {
+    if (typeof Impl === 'undefined' || !Impl) {
+        throw new Error('La librería del escáner no se ha cargado.');
+    }
+
+    // Contenedor temporal único por intento: sin residuos del anterior.
+    const elementId = `centinela-qr-tmp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const container = document.createElement('div');
+    container.id = elementId;
+    container.className = 'hidden';
+    document.body.appendChild(container);
+
+    let tempScanner = null;
     try {
-        if (typeof Html5Qrcode === 'undefined') {
-            throw new Error('La librería del escáner no se ha cargado.');
-        }
-
-        const tempScanner = new Html5Qrcode('temp-scanner-' + Date.now(), { verbose: false });
-
-        // Crear un contenedor temporal
-        const container = document.createElement('div');
-        container.id = tempScanner._elementId || 'temp-qr-container';
-        container.style.display = 'none';
-        document.body.appendChild(container);
-
-        try {
-            const result = await tempScanner.scanFile(imageFile, true);
-            document.body.removeChild(container);
-            return result;
-        } catch {
-            document.body.removeChild(container);
-            throw new Error('No se encontró ningún código QR en la imagen. Asegúrate de que el código sea visible y esté bien enfocado.');
-        }
-    } catch (err) {
-        throw err;
+        tempScanner = new Impl(elementId, { verbose: false });
+        return await tempScanner.scanFile(imageFile, true);
+    } catch {
+        throw new Error('No he encontrado ningún código QR en esta imagen.');
+    } finally {
+        try { if (tempScanner && typeof tempScanner.clear === 'function') tempScanner.clear(); } catch { /* limpieza best-effort */ }
+        try { container.parentNode ? container.parentNode.removeChild(container) : container.remove(); } catch { /* limpieza best-effort */ }
     }
 }
 

@@ -668,6 +668,38 @@ textarea, input { font-family: inherit; }
     white-space: nowrap;
 }
 
+/* ---- Scanner: estado «cámara no disponible» (HU-11 AC-02) ---- */
+.scanner-unavailable {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--sp-lg);
+    padding: var(--sp-xl);
+    text-align: center;
+    background: #000;
+}
+
+.scanner-unavailable-icon {
+    font-size: 56px;
+    line-height: 1;
+    opacity: 0.85;
+}
+
+.scanner-unavailable-msg {
+    max-width: 32ch;
+    color: rgba(255, 255, 255, 0.9);
+    font-size: var(--fs-lg);
+    line-height: 1.4;
+}
+
+.scanner-unavailable .btn {
+    width: 100%;
+    max-width: 320px;
+}
+
 /* ---- Loading Screen ---- */
 #screen-loading {
     justify-content: center;
