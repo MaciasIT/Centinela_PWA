@@ -1,3 +1,5 @@
+import pkg from '../../package.json' with { type: 'json' };
+
 const results = [];
 function ok(name, fn) {
   try { fn(); results.push({ ok: true, name }); }
@@ -26,6 +28,14 @@ ok('GET /health responde 200 y JSON status ok', async () => {
   if (res.status !== 200) throw new Error(`status ${res.status}`);
   const data = await res.json();
   if (data.status !== 'ok') throw new Error('status no es ok');
+});
+
+ok('HU-23: /health devuelve la misma versión que package.json', async () => {
+  const worker = await loadWorker();
+  const req = makeReq('GET', '/health');
+  const res = await worker.fetch(req, {}, {});
+  const data = await res.json();
+  if (data.version !== pkg.version) throw new Error(`worker=${data.version} vs package.json=${pkg.version}`);
 });
 
 ok('GET / rutas desconocidas responde 404', async () => {
