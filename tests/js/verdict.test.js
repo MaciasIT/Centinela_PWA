@@ -7,6 +7,7 @@
  * (positives=0 & suspicious=2 → se veía amarillo pero se guardaba como "Seguro").
  */
 import { parseHTML } from 'linkedom';
+import { readFileSync } from 'node:fs';
 import { classify, verdictInfo, verdictSteps } from '../../js/core/verdict.js';
 import { recordScanOutcome } from '../../js/core/scan-record.js';
 import * as resultScreen from '../../js/screens/result.js';
@@ -163,6 +164,23 @@ ok('HU-02 CONTRATO: el cableado real mantiene pantalla, historial y estadística
     tearDownDom();
   }
   clearHistory();
+});
+
+ok('HU-02 CONTRATO: app.js delega el punto de unión en el cableado único (guarda anti-F-4)', () => {
+  const appSrc = readFileSync(new URL('../../js/app.js', import.meta.url), 'utf8');
+
+  // El punto de unión de app.js DEBE delegar en el cableado único, con el
+  // resultado crudo: sin recortarlo ni recalcular el veredicto por su cuenta.
+  // Esto cubre el único camino que el test directo no ejercita (el call-site).
+  if (!/recordScanOutcome\(\s*currentUrl\s*,\s*result\s*\)/.test(appSrc)) {
+    throw new Error('app.js no llama a recordScanOutcome(currentUrl, result) con el resultado crudo');
+  }
+  // Y NO debe volver a cablear clasificación/historial/estadísticas a mano.
+  for (const fn of ['classify', 'addToHistory', 'recordScan']) {
+    if (new RegExp(`\\b${fn}\\s*\\(`).test(appSrc)) {
+      throw new Error(`app.js vuelve a llamar a ${fn}() por su cuenta: el cableado debe vivir solo en core/scan-record.js`);
+    }
+  }
 });
 
 ok('HU-02/H-2: historial y estadísticas cuentan lo mismo (un reescaneo duplicado no infla las estadísticas)', () => {
