@@ -75,6 +75,7 @@ const STEPS = Object.freeze({
  *
  * | # | Condición                                   | Veredicto |
  * |---|---------------------------------------------|-----------|
+ * | 0 | contador negativo o no numérico (inválido)  | warning   |
  * | 1 | total === 0                                 | warning   |
  * | 2 | malicious > 3                               | danger    |
  * | 3 | malicious >= 1 || suspicious >= 1           | warning   |
@@ -84,9 +85,13 @@ const STEPS = Object.freeze({
  * @returns {'safe'|'warning'|'danger'}
  */
 export function classify(input) {
-  const malicious = toNumber(input?.malicious ?? input?.positives);
-  const suspicious = toNumber(input?.suspicious);
-  const total = toNumber(input?.total);
+  const malicious = toCount(input?.malicious ?? input?.positives);
+  const suspicious = toCount(input?.suspicious);
+  const total = toCount(input?.total);
+
+  // Dato inconsistente (contador negativo o no numérico) → no es fiable.
+  // Precaución, nunca «limpio» (H-3): un valor negativo no puede leerse como seguro.
+  if (malicious === null || suspicious === null || total === null) return VERDICT.WARNING;
 
   if (total === 0) return VERDICT.WARNING;
   if (malicious > 3) return VERDICT.DANGER;
@@ -111,7 +116,15 @@ export function verdictSteps(verdict) {
   return STEPS[verdict] || STEPS.warning;
 }
 
-function toNumber(v) {
+/**
+ * Sanea un contador de la tabla de clasificación.
+ * - Ausente (`undefined`/`null`/`''`) → 0 (sin señal).
+ * - Negativo o no numérico → `null` (dato inválido: la clasificación lo trata
+ *   como no fiable y devuelve precaución, nunca «limpio»).
+ */
+function toCount(v) {
+  if (v === undefined || v === null || v === '') return 0;
   const n = Number(v);
-  return Number.isFinite(n) && n > 0 ? n : 0;
+  if (!Number.isFinite(n) || n < 0) return null;
+  return n;
 }
