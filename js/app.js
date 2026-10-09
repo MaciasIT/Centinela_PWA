@@ -337,6 +337,14 @@ function init() {
     bindNav('.nav-btn[data-screen="history"]', 'history');
     bindNav('.nav-btn[data-screen="settings"]', 'settings');
 
+    // HU-25 AC-03: pulsar una entrada del historial vuelve a comprobar su enlace.
+    historyScreen.setRecheckHandler((url) => {
+        if (els.urlInput) els.urlInput.value = url;
+        updateCheckButton();
+        navigate('main');
+        setTimeout(() => analyzeCurrentUrl(), 300);
+    });
+
     registerServiceWorker();
 
     homeScreen.mount();
