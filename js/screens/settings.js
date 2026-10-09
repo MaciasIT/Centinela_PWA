@@ -47,7 +47,7 @@ function settingsMarkup() {
 
       <div class="settings-section">
         <h3>ℹ️ Acerca de</h3>
-        <p class="settings-hint">Centinela PWA · versión 2.3.0<br>Desarrollado por <strong>Macias IT</strong>.<br>Análisis multi-motor con Vista previa aislada.</p>
+        <p class="settings-hint">Centinela PWA · versión 2.3.0<br>Desarrollado por <strong>Macias IT</strong>.<br>Análisis con VirusTotal y vista previa aislada.</p>
       </div>
     </div>
   `;

@@ -62,22 +62,22 @@ export function render(result, currentUrl, local) {
     status = 'warning';
     icon = '⚠️';
     title = 'Análisis no disponible';
-    message = 'Ningún motor de seguridad ha podido analizar este enlace todavía. Puede que sea demasiado nuevo o no esté indexado por VirusTotal.';
+    message = 'VirusTotal no ha podido analizar este enlace todavía. Puede que sea demasiado nuevo o no esté indexado.';
   } else if (positives === 0 && suspicious === 0) {
     status = 'safe';
     icon = '✅';
     title = 'Este enlace es seguro';
-    message = `${total} motores de seguridad lo han analizado y ninguno ha encontrado problemas. Puedes abrirlo con tranquilidad.`;
+    message = `VirusTotal lo ha analizado con ${total} motores y ninguno ha encontrado problemas. Puedes abrirlo con tranquilidad.`;
   } else if (positives > 3) {
     status = 'danger';
     icon = '🚨';
     title = '¡No abras este enlace!';
-    message = `${positives} de ${total} motores de seguridad lo han marcado como peligroso. Podría ser una estafa, phishing o contener malware.`;
+    message = `VirusTotal lo ha marcado como peligroso: ${positives} de ${total} motores lo detectan. Podría ser una estafa, phishing o contener malware.`;
   } else {
     status = 'warning';
     icon = '⚠️';
     title = 'Ten cuidado con este enlace';
-    message = `${positives + suspicious} de ${total} motores han encontrado algo sospechoso. Te recomendamos no introducir datos personales en esta web.`;
+    message = `VirusTotal ha visto algo sospechoso: ${positives + suspicious} de ${total} motores avisan. Te recomendamos no introducir datos personales en esta web.`;
   }
 
   // Enriquecer mensaje si hay razones del veredicto local y no es seguro
@@ -184,6 +184,7 @@ function renderTechnicalDetails(result, status) {
   if (!_els.resultDetailsContent || !_els.resultDetails) return;
 
   let html = `<div class="detail-grid">
+    <div class="detail-row"><span class="detail-label">Fuente</span><span class="detail-value">VirusTotal</span></div>
     <div class="detail-row"><span class="detail-label">Motores que lo analizaron</span><span class="detail-value">${total}</span></div>
     <div class="detail-row"><span class="detail-label">Detectado como peligroso</span><span class="detail-value ${positives > 0 ? 'danger' : 'safe'}">${positives}</span></div>
     <div class="detail-row"><span class="detail-label">Marcado como sospechoso</span><span class="detail-value ${suspicious > 0 ? 'warning' : ''}">${suspicious}</span></div>
@@ -195,7 +196,7 @@ function renderTechnicalDetails(result, status) {
     html += `<div class="detail-row"><span class="detail-label">Último análisis</span><span class="detail-value">${scanDate.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}</span></div>`;
   }
   if (result.fromCache) {
-    html += `<div class="detail-row"><span class="detail-label">Fuente</span><span class="detail-value" style="color:var(--color-info)">Caché local</span></div>`;
+    html += `<div class="detail-row"><span class="detail-label">Respuesta</span><span class="detail-value" style="color:var(--color-info)">Caché local</span></div>`;
   }
   html += `</div>`;
 
