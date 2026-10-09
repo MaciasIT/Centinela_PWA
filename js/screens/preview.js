@@ -39,10 +39,8 @@ export function openPreview(currentUrl, els) {
 
   const encodedUrl = encodeURIComponent(currentUrl);
   const mshotsUrl = `https://s.wordpress.com/mshots/v1/${encodedUrl}?w=1200`;
-  const thumbWsUrl = `https://api.thumbnail.ws/api/${encodedUrl}?width=1200`;
 
   let loaded = false;
-  let triedFallback = false;
 
   const finish = (success) => {
     if (loaded) return;
@@ -60,31 +58,14 @@ export function openPreview(currentUrl, els) {
     }
   };
 
-  const tryLoad = (url, isFallback = false) => {
-    els.previewImg.onload = () => {
-      if (els.previewImg.naturalWidth < 50 || els.previewImg.naturalHeight < 50) {
-        if (!triedFallback && !isFallback) {
-          triedFallback = true;
-          els.previewLoading.innerHTML = '<div class="spinner"></div> Reintentando con fuente alternativa...';
-          tryLoad(thumbWsUrl, true);
-        } else {
-          finish(false);
-        }
-        return;
-      }
-      finish(true);
-    };
-    els.previewImg.onerror = () => {
-      if (!triedFallback && !isFallback) {
-        triedFallback = true;
-        els.previewLoading.innerHTML = '<div class="spinner"></div> Reintentando con fuente alternativa...';
-        tryLoad(thumbWsUrl, true);
-      } else {
-        finish(false);
-      }
-    };
-    els.previewImg.src = url;
+  els.previewImg.onload = () => {
+    if (els.previewImg.naturalWidth < 50 || els.previewImg.naturalHeight < 50) {
+      finish(false);
+      return;
+    }
+    finish(true);
   };
+  els.previewImg.onerror = () => finish(false);
 
   els.previewTimeout = setTimeout(() => {
     if (!loaded) {
@@ -92,6 +73,6 @@ export function openPreview(currentUrl, els) {
       finish(false);
     }
   }, 15000);
-  tryLoad(mshotsUrl);
+  els.previewImg.src = mshotsUrl;
   hapticFeedback('light');
 }
