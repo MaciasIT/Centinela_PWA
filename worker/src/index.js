@@ -6,8 +6,13 @@
  * muertas en producción: la clave de GSB nunca estuvo configurada).
  *
  * ── Orden de comprobación de `POST /api/scan` (arquitectura §5.3.1) ──
- *   CORS → validación → freno de inundación por IP (binding) → cuota global
- *   exacta (DO `QuotaGuard`) → VirusTotal
+ *   CORS → Content-Type → freno de inundación por IP (binding) → tamaño del
+ *   cuerpo → lectura/parseo → validación → cuota global exacta (DO `QuotaGuard`)
+ *   → VirusTotal
+ *
+ * El freno por IP y el rechazo por tamaño van ANTES de leer el cuerpo (hallazgo
+ * H-3 de la revisión de seguridad de la Tanda 3a): ningún camino de lectura o
+ * parseo queda sin pasar por un control.
  *
  * ── AVISO IMPORTANTE SOBRE EL RATE LIMITING ─────────────────────────
  * El binding `SCAN_RATE_LIMITER` ([[ratelimits]], 30/60 s por IP) **NO es un
@@ -129,6 +134,20 @@ async function ipFloodBrake(request, env) {
   return success !== false;
 }
 
+/* ── Tamaño del cuerpo ───────────────────────────────────────────── */
+
+/**
+ * ¿El `Content-Length` DECLARADO supera el máximo? Permite rechazar por la
+ * cabecera ANTES de bufferizar el cuerpo (hallazgo H-3). Si el cliente miente o
+ * usa chunked sin longitud, queda el backstop de `rawBody.length` tras leer.
+ */
+function declaredBodyTooLarge(request) {
+  const raw = request.headers.get('Content-Length');
+  if (!raw) return false;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > MAX_BODY_BYTES;
+}
+
 /* ── Entrypoint ──────────────────────────────────────────────────── */
 
 export default {
@@ -186,6 +205,18 @@ async function handleScan(request, env, corsOrigin) {
     return errorResponse(415, 'INVALID_JSON', corsOrigin);
   }
 
+  // Freno de inundación por IP (binding). NO protege la cuota: ver cabecera.
+  // Va ANTES de leer el cuerpo (H-3): un actor en inundación se corta sin que
+  // lleguemos a bufferizar y parsear su petición.
+  if (!(await ipFloodBrake(request, env))) {
+    return errorResponse(429, 'RATE_LIMITED', corsOrigin);
+  }
+
+  // Tamaño declarado: se rechaza por cabecera, sin leer el cuerpo (H-3).
+  if (declaredBodyTooLarge(request)) {
+    return errorResponse(413, 'INVALID_JSON', corsOrigin);
+  }
+
   let rawBody;
   try {
     rawBody = await request.text();
@@ -209,12 +240,8 @@ async function handleScan(request, env, corsOrigin) {
   }
 
   // Normalización canónica (RC-04): el mismo destino no consume cuota dos veces.
+  // Conserva el esquema original del usuario (C-1): no se analiza otra variante.
   const targetUrl = normalizeUrl(checked.url) || checked.url;
-
-  // Freno de inundación por IP (binding). NO protege la cuota: ver cabecera.
-  if (!(await ipFloodBrake(request, env))) {
-    return errorResponse(429, 'RATE_LIMITED', corsOrigin);
-  }
 
   // Techo global EXACTO de cuota (DO `QuotaGuard`).
   const quota = await acquireQuota(env);
@@ -239,18 +266,31 @@ async function handleScan(request, env, corsOrigin) {
 /* ── POST /api/local-check ───────────────────────────────────────── */
 
 /**
- * NOTA DE ALCANCE (T3a): la arquitectura §5.2 recomienda retirar este endpoint
- * y mover las señales puras al cliente (`core/reputation.js`, fase Should), pero
- * también deja la decisión «revisable por el Orchestrator». Esta tanda lo MANTIENE
- * (fuera de alcance: motor de reputación local / E1) y se limita a arreglar el
- * import que faltaba —sin él, el endpoint devolvía un 500 con fuga de `err.message`—
- * y a aplicarle la misma validación, CORS y cabeceras que al resto.
- * Ver `tanda-3a-informe.md` (contradicción C-4).
+ * NOTA DE ALCANCE (T3a/T3c): la arquitectura §5.2 recomienda retirar este
+ * endpoint y mover las señales puras al cliente (`core/reputation.js`, fase
+ * Should), pero también deja la decisión «revisable por el Orchestrator».
+ *
+ * DECISIÓN DEL ORCHESTRATOR (Tanda 3c, C-2): **se MANTIENE**, porque el cliente
+ * lo usa de verdad (`js/api.js`) y hoy funciona. Al mantenerse, se le aplica la
+ * mitigación que pedía la revisión de seguridad (hallazgo H-2): el MISMO freno
+ * de inundación por IP y el mismo rechazo por tamaño declarado que a
+ * `/api/scan`, antes de leer el cuerpo y antes de hacer ningún `fetch` saliente
+ * (RDAP). No consume cuota del DO: no llama a VirusTotal.
+ * Ver `tanda-3a-informe.md` (C-2) y `revision-seguridad-worker.md` (H-2/H-3).
  */
 async function handleLocalCheck(request, env, corsOrigin) {
   const contentType = (request.headers.get('Content-Type') || '').toLowerCase();
   if (!contentType.includes('application/json')) {
     return errorResponse(415, 'INVALID_JSON', corsOrigin);
+  }
+
+  // Mismo freno de inundación por IP que /api/scan (H-2), antes de leer el cuerpo.
+  if (!(await ipFloodBrake(request, env))) {
+    return errorResponse(429, 'RATE_LIMITED', corsOrigin);
+  }
+
+  if (declaredBodyTooLarge(request)) {
+    return errorResponse(413, 'INVALID_JSON', corsOrigin);
   }
 
   let rawBody;

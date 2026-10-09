@@ -188,12 +188,14 @@ okAsync('Content-Type no JSON → 415 sin llamar a VT', async () => {
   });
 });
 
-okAsync('cuerpo > 8 KB → 413 sin llamar a VT', async () => {
-  const { env } = makeEnv();
+okAsync('cuerpo > 8 KB → 413 sin leer más allá del control ni llamar a VT', async () => {
+  const { env, quota, limiter } = makeEnv();
   await withVtMock(async (seen) => {
     const res = await worker.fetch(makeRequest('POST', '/api/scan', { url: 'https://ejemplo.com', relleno: 'x'.repeat(9000) }), env, {});
     assert(res.status === 413, `status ${res.status}`);
     assert(seen.urls.length === 0, 'no debe llamarse a VT');
+    assert(quota.seen.fetches === 0, 'no debe consumirse cuota del DO');
+    assert(limiter.state.calls === 1, `freno consultado ${limiter.state.calls} veces, esperado 1`);
   });
 });
 
@@ -292,6 +294,67 @@ okAsync('binding por IP excedido → 429 RATE_LIMITED antes de llamar a VT', asy
     assert(seen.urls.length === 0, 'no debe llamarse a VT');
     assert(quota.seen.fetches === 0, 'no debe consumirse token de cuota si el freno por IP ya cortó');
   });
+});
+
+/* ── H-3: freno y tamaño ANTES de leer el cuerpo ─────────────────── */
+
+okAsync('H-3: el freno por IP se consulta ANTES de leer el cuerpo (cuerpo grande + freno agotado → 429)', async () => {
+  const quota = makeQuotaNamespace();
+  const limiter = makeLimiter(0);
+  const env = {
+    VIRUSTOTAL_API_KEY: 'k', ALLOWED_ORIGINS: ALLOWED,
+    QUOTA_GUARD: quota.namespace, SCAN_RATE_LIMITER: limiter.binding,
+  };
+  await withVtMock(async (seen) => {
+    const res = await worker.fetch(
+      makeRequest('POST', '/api/scan', { url: 'https://ejemplo.com', relleno: 'x'.repeat(9000) }),
+      env, {}
+    );
+    assert(res.status === 429, `status ${res.status} (el freno debe cortar antes del 413)`);
+    assert(limiter.state.calls === 1, `freno consultado ${limiter.state.calls} veces, esperado 1`);
+    assert(quota.seen.fetches === 0, 'no debe consumirse cuota del DO');
+    assert(seen.urls.length === 0, 'no debe llamarse a VT');
+  });
+});
+
+/* ── H-2: /api/local-check (se mantiene) también va frenado ──────── */
+
+okAsync('H-2: /api/local-check pasa por el freno por IP antes del fetch saliente (RDAP)', async () => {
+  const quota = makeQuotaNamespace();
+  const limiter = makeLimiter(0);
+  const env = { ALLOWED_ORIGINS: ALLOWED, QUOTA_GUARD: quota.namespace, SCAN_RATE_LIMITER: limiter.binding };
+  const originalFetch = globalThis.fetch;
+  const outbound = [];
+  globalThis.fetch = async (u) => { outbound.push(String(u)); throw new Error('no debería haber fetch saliente'); };
+  try {
+    const res = await worker.fetch(makeRequest('POST', '/api/local-check', { url: 'https://ejemplo.com' }), env, {});
+    assert(res.status === 429, `status ${res.status}`);
+    const data = await res.json();
+    assert(data.error.code === 'RATE_LIMITED', `código ${data.error.code}`);
+    assert(limiter.state.calls === 1, `freno consultado ${limiter.state.calls} veces, esperado 1`);
+    assert(outbound.length === 0, `no debe haber fetch saliente, hubo ${outbound.length}`);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+okAsync('H-2: /api/local-check sigue sirviendo (200) con el freno en verde y consulta RDAP una vez', async () => {
+  const { env } = makeEnv();
+  const originalFetch = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = async () => {
+    calls += 1;
+    return new Response(JSON.stringify({ events: [] }), { status: 200, headers: { 'content-type': 'application/rdap+json' } });
+  };
+  try {
+    const res = await worker.fetch(makeRequest('POST', '/api/local-check', { url: 'https://ejemplo.com' }), env, {});
+    assert(res.status === 200, `status ${res.status}`);
+    const data = await res.json();
+    assert(data.source === 'local', `source ${data.source}`);
+    assert(calls === 1, `RDAP consultado ${calls} veces, esperado 1`);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 /* ── Techo global exacto (DO QuotaGuard) → 503 ───────────────────── */
