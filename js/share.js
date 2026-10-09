@@ -13,10 +13,50 @@ import { extractFirstValidUrl } from './core/entry.js';
  * @returns {string}
  */
 export function buildShareText(url, result) {
-    const info = verdictInfo(classify(result));
+    const verdict = classify(result);
+    const info = verdictInfo(verdict);
     const emoji = info.icon;
     const statusText = info.label.toUpperCase();
-    return `${emoji} He comprobado este enlace con Centinela y es ${statusText}:\n\n${url}\n\n${result.positives || 0}/${result.total || 0} analizadores de VirusTotal lo marcan como peligroso.\n\n🛡️ Comprueba tus enlaces en: centinela-pwa.pages.dev`;
+    const detail = buildShareDetail(result, verdict);
+    return `${emoji} He comprobado este enlace con Centinela y es ${statusText}:\n\n${url}\n\n${detail}\n\n🛡️ Comprueba tus enlaces en: centinela-pwa.pages.dev`;
+}
+
+/** Contador para mostrar en el texto (no numérico → 0). */
+function toDisplayCount(v) {
+    const n = Number(v);
+    return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+/**
+ * Frase de detalle del texto compartido, ajustada al veredicto (INFO-3).
+ *
+ * - No habla de «analizadores» cuando no hay ninguna detección (total 0).
+ * - No llama «peligroso» a un veredicto «Dudoso».
+ * - Tono cercano y sin alarmar de más.
+ *
+ * @param {object} result
+ * @param {'safe'|'warning'|'danger'|'unchecked'} verdict
+ * @returns {string}
+ */
+function buildShareDetail(result, verdict) {
+    const malicious = toDisplayCount(result?.malicious ?? result?.positives);
+    const suspicious = toDisplayCount(result?.suspicious);
+    const total = toDisplayCount(result?.total);
+
+    if (verdict === 'danger') {
+        return `${malicious}/${total} analizadores de VirusTotal lo marcan como peligroso.`;
+    }
+    if (verdict === 'safe') {
+        return `Ninguno de los ${total} analizadores de VirusTotal ha visto nada raro.`;
+    }
+    if (verdict === 'unchecked') {
+        return 'No hemos podido completar el análisis, así que mejor no te fíes todavía.';
+    }
+    // «Dudoso»: o no hay análisis, o hay alguna pega pero nada que lo marque peligroso.
+    if (!total) {
+        return 'Todavía no hay ningún analizador que lo haya revisado.';
+    }
+    return `Algunos analizadores de VirusTotal le han puesto alguna pega (${malicious + suspicious} de ${total}).`;
 }
 
 /**

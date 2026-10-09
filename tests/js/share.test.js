@@ -83,6 +83,20 @@ ok('HU-13 AC-02: la confirmación visible existe solo al copiar', () => {
   if (shareConfirmation('cancelled') !== null) throw new Error('cancelar no debe confirmar');
 });
 
+/* ── INFO-3: redacción del texto compartido ── */
+
+ok('INFO-3: con total=0 no se habla de «analizadores» (no existe 0/0)', () => {
+  const text = buildShareText('https://sin-datos.test/a', { positives: 0, suspicious: 0, total: 0 });
+  if (/0\s*\/\s*0/.test(text)) throw new Error(`no debe mostrarse 0/0: ${text}`);
+  if (/analizadores/i.test(text)) throw new Error(`sin analizadores no debe mencionarlos: ${text}`);
+});
+
+ok('INFO-3: un veredicto «Dudoso» no se llama «peligroso»', () => {
+  const text = buildShareText('https://dudoso.test/a', { positives: 1, suspicious: 1, total: 70 });
+  if (!/DUDOSO/i.test(text)) throw new Error(`debe mostrar el veredicto «DUDOSO»: ${text}`);
+  if (/peligroso/i.test(text)) throw new Error(`«Dudoso» no debe llamarse «peligroso»: ${text}`);
+});
+
 /* ── HU-12 AC-01/AC-02/AC-03: lectura del Web Share Target ── */
 
 ok('HU-12 AC-01: los parámetros del share_target contienen el enlace compartido', () => {
