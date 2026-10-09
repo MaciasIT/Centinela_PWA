@@ -23,8 +23,8 @@ import { recordScan } from '../stats.js';
  * del veredicto guardado, nunca de un recuento paralelo.
  *
  * @param {string} url - URL normalizada que se está comprobando.
- * @param {{positives?:number, malicious?:number, suspicious?:number, total?:number}} result
- * @returns {'safe'|'warning'|'danger'} el veredicto único.
+ * @param {{positives?:number, malicious?:number, suspicious?:number, timeout?:number, total?:number}} result
+ * @returns {'safe'|'warning'|'danger'|'unchecked'} el veredicto único.
  */
 export function recordScanOutcome(url, result) {
   const verdict = classify(result);

@@ -42,6 +42,7 @@ export function addToHistory(url, result) {
             status: classify(result),
             positives: result.positives,
             suspicious: result.suspicious,
+            timeout: result.timeout,
             total: result.total,
             date: new Date().toISOString(),
         };

@@ -65,7 +65,7 @@ export async function analyzeUrl(url) {
         // ── Formato multi-fuente (v2) ──
         if (payload.results && Array.isArray(payload.results)) {
             const result = normalizeMultiSource(normalizedUrl, payload);
-            if (result.total > 0) {
+            if (hasUsableData(result)) {
                 setLocalCache(normalizedUrl, result);
             }
             return result;
@@ -76,7 +76,7 @@ export async function analyzeUrl(url) {
         // aún no está listo, se devuelve tal cual (total 0 → precaución) y la
         // pantalla de carga ofrece un reintento MANUAL a los 8 s.
         const result = normalizeLegacyVT(normalizedUrl, payload);
-        if (result.total > 0) {
+        if (hasUsableData(result)) {
             setLocalCache(normalizedUrl, result);
         }
         return result;
@@ -117,6 +117,7 @@ function normalizeMultiSource(url, payload) {
             suspicious: stats.suspicious || 0,
             harmless: stats.harmless || 0,
             undetected: stats.undetected || 0,
+            timeout: stats.timeout || 0,
             total: (stats.malicious || 0) + (stats.suspicious || 0) + (stats.harmless || 0) + (stats.undetected || 0) + (stats.timeout || 0),
             scanDate: attr.last_analysis_date || Date.now() / 1000,
             engines: extractEngines(vtResult.data),
@@ -161,7 +162,8 @@ function normalizeLegacyVT(url, data) {
     const suspicious = stats.suspicious || 0;
     const harmless = stats.harmless || 0;
     const undetected = stats.undetected || 0;
-    const calcTotal = malicious + suspicious + harmless + undetected + (stats.timeout || 0);
+    const timeout = stats.timeout || 0;
+    const calcTotal = malicious + suspicious + harmless + undetected + timeout;
 
     return {
         positives: malicious,
@@ -169,6 +171,7 @@ function normalizeLegacyVT(url, data) {
         suspicious,
         harmless,
         undetected,
+        timeout,
         scanDate: attr.last_analysis_date || Date.now() / 1000,
         engines: extractEngines(data),
         permalink: data.data?.links?.self ?
@@ -182,6 +185,17 @@ function normalizeLegacyVT(url, data) {
 }
 
 // ── Utilidades ────────────────────────────────────────────────────
+
+/**
+ * ¿El resultado tiene datos utilizables? (T2c)
+ * `total > 0` NO basta: un informe 100 % timeout tiene `total > 0` pero ninguna
+ * detección real. Ese resultado NO se cachea, para que «volver a intentarlo»
+ * vuelva a consultar la fuente en vez de devolver un «no comprobado» viejo.
+ */
+function hasUsableData(result) {
+    const real = (result.positives || 0) + (result.suspicious || 0) + (result.harmless || 0) + (result.undetected || 0);
+    return (result.total || 0) > 0 && real > 0;
+}
 
 export function normalizeUrl(url) {
     let trimmed = url.trim();
