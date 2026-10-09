@@ -44,6 +44,7 @@ const els = {
     btnNewCheck: $('btn-new-check'),
     btnPreview: $('btn-preview'),
     btnSos: $('btn-sos'),
+    btnGuardianHint: $('btn-guardian-hint'),
     // Dialogs & Overlays
     btnClosePreview: $('btn-close-preview'),
     previewDialog: $('preview-dialog'),
@@ -243,16 +244,7 @@ function initEventListeners() {
         btnPreview: els.btnPreview,
         previewTimeout: null,
     }));
-    els.btnSos?.addEventListener('click', () => {
-        const phone = guardianScreen.loadGuardianPhone();
-        if (!phone) return;
-        const brandVisible = $('result-brand')?.style.display !== 'none';
-        const brandMsg = $('brand-msg')?.textContent || '';
-        const resultTitle = $('result-title')?.textContent || '';
-        const message = guardianScreen.buildSosMessage(currentUrl, resultTitle, brandMsg, brandVisible);
-        guardianScreen.openSosWhatsApp(phone, message);
-        hapticFeedback('medium');
-    });
+    els.btnGuardianHint?.addEventListener('click', () => navigate('settings'));
 
     // --- Dialogs ---
     dialogScreen.bindInfoDialog({
@@ -274,11 +266,16 @@ function initEventListeners() {
         });
     });
 
-    // --- Guardian ---
-    guardianScreen.initGuardian({
-        guardianPhone: $('guardian-phone'),
-    });
-    guardianScreen.mount();
+    // --- Ángel de la Guarda (HU-27): UN solo cableado del botón «Preguntar» (F-5) ---
+    guardianScreen.bindSosButton(
+        { btnSos: $('btn-sos') },
+        {
+            getUrl: () => currentUrl,
+            getResultTitle: () => $('result-title')?.textContent || '',
+            getBrandMsg: () => $('brand-msg')?.textContent || '',
+            getBrandVisible: () => $('result-brand')?.style.display !== 'none',
+        }
+    );
 
     // --- Error Dialog ---
     els.btnCloseError?.addEventListener('click', closeError);
