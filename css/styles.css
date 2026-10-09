@@ -1747,3 +1747,95 @@ textarea, input { font-family: inherit; }
 .btn-retry {
     margin-top: var(--space-lg);
 }
+
+/* ---- Historial agrupado por día (HU-25 AC-01) ----
+   Estructura mínima; la identidad visual completa llega en la Tanda 5. */
+.history-group {
+    margin-bottom: var(--sp-lg);
+}
+
+.history-group-title {
+    font-size: var(--fs-sm);
+    font-weight: var(--fw-semibold);
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    margin: 0 0 var(--sp-sm);
+}
+
+.history-card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: var(--sp-md);
+    margin-bottom: var(--sp-sm);
+    cursor: pointer;
+}
+
+.history-card:hover {
+    background: var(--bg-tertiary);
+}
+
+.history-card:focus-visible {
+    outline: 2px solid var(--accent, #4a9eff);
+    outline-offset: 2px;
+}
+
+.history-card-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-sm);
+}
+
+.history-card-meta {
+    margin-top: var(--sp-xs);
+    font-size: var(--fs-xs);
+    color: var(--text-muted);
+}
+
+.history-badge {
+    font-size: var(--fs-xs);
+    font-weight: var(--fw-semibold);
+}
+
+/* ---- Referencias de ayuda con veredicto rojo (HU-28) ---- */
+.result-help {
+    width: 100%;
+    text-align: left;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-left: 4px solid #c0362c;
+    border-radius: var(--radius-md);
+    padding: var(--sp-md);
+    margin-top: var(--sp-md);
+}
+
+.result-help-title {
+    font-size: var(--fs-md, 1rem);
+    font-weight: var(--fw-semibold);
+    margin: 0 0 var(--sp-xs);
+}
+
+.result-help p {
+    font-size: var(--fs-sm);
+    color: var(--text-primary);
+    margin: 0;
+}
+
+/* ---- Oferta de guardar contacto (HU-27 AC-03) ---- */
+.result-guardian-hint {
+    width: 100%;
+    text-align: left;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: var(--sp-md);
+    margin-top: var(--sp-md);
+}
+
+.result-guardian-hint p {
+    font-size: var(--fs-sm);
+    color: var(--text-primary);
+    margin: 0 0 var(--sp-sm);
+}

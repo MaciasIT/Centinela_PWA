@@ -43,6 +43,8 @@ export function mount(container, data) {
     btnWhatNow: $('btn-what-now'),
     resultWhatNow: $('result-what-now'),
     resultWhatNowSteps: $('result-what-now-steps'),
+    resultHelp: $('result-help'),
+    resultGuardianHint: $('result-guardian-hint'),
     previewDialog: $('preview-dialog'),
     previewImg: $('preview-img'),
     previewLoading: $('preview-loading'),
@@ -131,6 +133,7 @@ export function render(result, currentUrl, local) {
 
   renderWhatNow(status);
   renderTrustLevel(result);
+  renderHelp(status);
   updateSosButton(status);
   renderTechnicalDetails(result, status);
 
@@ -160,10 +163,30 @@ function renderWhatNow(status) {
   }
 }
 
+/**
+ * HU-28 — Referencias de ayuda reales SOLO con veredicto rojo (AC-01/AC-02):
+ * el 017 de INCIBE y el consejo de avisar al banco. En verde/amarillo no
+ * aparecen para no alarmar de más.
+ */
+function renderHelp(status) {
+  if (!_els.resultHelp) return;
+  _els.resultHelp.style.display = status === 'danger' ? 'block' : 'none';
+}
+
+/**
+ * HU-27 — Ángel de la Guarda:
+ *  - AC-01: con contacto y veredicto no verde, se ofrece «Preguntar».
+ *  - AC-03: sin contacto y veredicto no verde, se ofrece guardarlo con un
+ *    mensaje claro (el botón lleva a Ajustes).
+ */
 function updateSosButton(status) {
   const phone = loadGuardianPhone();
+  const nonGreen = status !== 'safe';
   if (_els.btnSos) {
-    _els.btnSos.style.display = (phone && status !== 'safe') ? 'inline-flex' : 'none';
+    _els.btnSos.style.display = (phone && nonGreen) ? 'inline-flex' : 'none';
+  }
+  if (_els.resultGuardianHint) {
+    _els.resultGuardianHint.style.display = (!phone && nonGreen) ? 'block' : 'none';
   }
 }
 
