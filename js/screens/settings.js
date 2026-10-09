@@ -9,9 +9,6 @@
 import { saveGuardianPhone, loadGuardianPhone, clearGuardianPhone } from '../screens/guardian.js';
 import { clearHistory as removeHistory } from '../history.js';
 import * as stats from '../stats.js';
-import { createButton } from '../components/button.js';
-import { openDialog } from '../components/dialog.js';
-import { showToast } from '../components/toast.js';
 
 export function mount(container) {
   container.innerHTML = settingsMarkup();
