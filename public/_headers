@@ -18,7 +18,7 @@
 # marcador inválido y se deja solo la URL real de producción; al conocer el
 # subdominio de staging (HU-35) debe añadirse su origen aquí.
 /*
-  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data: https://s.wordpress.com; connect-src 'self' https://centinela-api.michelmacias-it.workers.dev; worker-src 'self'; manifest-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; upgrade-insecure-requests
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: https://s.wordpress.com; connect-src 'self' https://centinela-api.michelmacias-it.workers.dev; worker-src 'self'; manifest-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; upgrade-insecure-requests
   X-Content-Type-Options: nosniff
   Referrer-Policy: no-referrer
   Permissions-Policy: geolocation=(), microphone=(), camera=(self)

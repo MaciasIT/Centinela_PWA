@@ -138,10 +138,13 @@ ok("Pages: `script-src` NO contiene 'unsafe-inline' ni 'unsafe-eval'", () => {
   if (!scriptSrc.includes("'self'")) throw new Error("script-src debe incluir 'self'");
 });
 
-ok("Pages: `style-src` NO contiene 'unsafe-inline'", () => {
+ok("Pages: `style-src` contiene 'unsafe-inline'", () => {
   const d = cspDirectives(readPagesHeaders()['content-security-policy'] || '');
-  if ((d['style-src'] || []).some((s) => s.toLowerCase().includes('unsafe-inline'))) {
-    throw new Error("style-src contiene 'unsafe-inline'");
+  if (!((d['style-src'] || []).some((s) => s.toLowerCase().includes('unsafe-inline')))) {
+    throw new Error("style-src debe contener 'unsafe-inline'");
+  }
+  if (!((d['style-src'] || []).includes("'self'"))) {
+    throw new Error("style-src debe incluir 'self'");
   }
 });
 

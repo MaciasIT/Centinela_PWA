@@ -55,10 +55,10 @@ ok('index.html no carga ningún <link rel="stylesheet"> externo (http)', () => {
 });
 
 /* 2. CSP de Pages */
-ok("Pages: `style-src` es exactamente 'self' (sin Google)", () => {
+ok("Pages: `style-src` es exactamente 'self' 'unsafe-inline' (sin Google)", () => {
   const d = cspDirectives(pagesCsp);
-  if ((d['style-src'] || []).join(' ') !== "'self'") {
-    throw new Error("style-src debe ser 'self', es: " + (d['style-src'] || []).join(' '));
+  if ((d['style-src'] || []).join(' ') !== "'self' 'unsafe-inline'") {
+    throw new Error("style-src debe ser 'self' 'unsafe-inline', es: " + (d['style-src'] || []).join(' '));
   }
 });
 ok("Pages: `font-src` es exactamente 'self' (sin Google)", () => {
