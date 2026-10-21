@@ -331,7 +331,7 @@
         <!-- ============================
              DIALOG INFO
              ============================ -->
-        <div id="info-dialog" class="overlay hidden" role="dialog" aria-labelledby="info-title">
+        <div id="info-dialog" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="info-title">
             <div class="dialog">
                 <div class="dialog-header">
                     <h2 id="info-title" class="dialog-title">Sobre Centinela</h2>
@@ -352,16 +352,16 @@
                         <p>No guardamos tus datos en ningún servidor. Tu historial solo existe en tu teléfono y puedes borrarlo cuando quieras.</p>
                     </div>
                     <div class="info-item">
-                        <h3>📱 Instálala en tu móvil</h3>
-                        <p>Pulsa <strong>"Añadir a pantalla de inicio"</strong> en tu navegador para tener Centinela siempre a mano, como una app más.</p>
+                        <h3>📱 Instálala como app</h3>
+                        <p>Pulsa <strong>"Instalar app"</strong> o <strong>"Añadir a pantalla de inicio"</strong> en tu navegador. Tendrás acceso instantáneo y Centinela funcionará como una aplicación nativa, incluso sin conexión a internet.</p>
                     </div>
                     <div class="info-item">
                         <h3>👼 Modo Ángel de la Guarda</h3>
                         <p>¿No estás seguro de un resultado? Guarda el teléfono de tu "experto" de confianza (hijo, sobrino, amigo) en <strong>Ajustes</strong> y podrás consultarle con un toque.</p>
                     </div>
                     <div class="info-item">
-                        <h3>💬 Consejo rápido</h3>
-                        <p>Cuando recibas un enlace sospechoso en WhatsApp o SMS, pulsa <strong>Compartir → Centinela</strong> para comprobarlo al instante.</p>
+                        <h3>💬 Comparte al instante</h3>
+                        <p>Con la app instalada, mantén pulsado cualquier enlace sospechoso en WhatsApp, Telegram o correo y selecciona <strong>Compartir → Centinela</strong> para analizarlo sin copiar ni pegar.</p>
                     </div>
                     <div class="info-footer">
                         <a href="manual.html" class="btn btn-primary manual-link">
@@ -378,7 +378,7 @@
         <!-- ============================
              DIALOG ERROR
              ============================ -->
-        <div id="error-dialog" class="overlay hidden" role="alertdialog" aria-labelledby="error-title">
+        <div id="error-dialog" class="overlay hidden" role="alertdialog" aria-modal="true" aria-labelledby="error-title">
             <div class="dialog dialog-error">
                 <div class="dialog-header">
                     <h2 id="error-title" class="dialog-title">⚠️ Algo salió mal</h2>
@@ -399,7 +399,7 @@
         <!-- ============================
              DIALOG PREVIEW
              ============================ -->
-        <div id="preview-dialog" class="overlay hidden" role="dialog" aria-labelledby="preview-title">
+        <div id="preview-dialog" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="preview-title">
             <div class="dialog dialog-preview">
                 <div class="dialog-header">
                     <h2 id="preview-title" class="dialog-title">📸 Vista Previa Segura</h2>
@@ -411,12 +411,12 @@
                     </button>
                 </div>
                 <div class="dialog-body">
-                    <div id="preview-frame" class="preview-frame">
-                        <div id="preview-loading" class="preview-status">
-                            <div class="spinner"></div>
-                            Generando imagen segura...
+                    <div id="preview-frame" class="preview-frame" aria-busy="false">
+                        <div id="preview-loading" class="preview-status" role="status" aria-live="polite">
+                            <div class="spinner" aria-hidden="true"></div>
+                            <span>Generando imagen segura...</span>
                         </div>
-                        <img id="preview-img" src="" alt="Vista previa de la web" class="preview-img hidden" crossorigin="anonymous" referrerpolicy="no-referrer">
+                        <img id="preview-img" src="" alt="Vista previa de la web" class="preview-img hidden" referrerpolicy="no-referrer">
                     </div>
                     <p class="preview-warning">
                         <strong>🛡️ Entorno Aislado:</strong> Lo que ves es una fotografía. No hay riesgo de virus, robo de datos ni interacciones maliciosas.

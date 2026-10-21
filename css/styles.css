@@ -2704,4 +2704,6 @@ h1, h2, h3, h4, h5, h6,
     .result-traffic-light.danger { animation: none !important; }
     .shield-icon { animation: none !important; }
     .loading-bar-fill { animation: none !important; }
+    .spinner { animation: none !important; }
+    .preview-img { animation: none !important; }
 }

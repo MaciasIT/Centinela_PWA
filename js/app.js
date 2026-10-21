@@ -242,6 +242,7 @@ function initEventListeners() {
         previewDialog: $('preview-dialog'),
         previewImg: $('preview-img'),
         previewLoading: $('preview-loading'),
+        previewFrame: $('preview-frame'),
         btnPreview: els.btnPreview,
         previewTimeout: null,
     }));
@@ -257,12 +258,14 @@ function initEventListeners() {
     els.btnClosePreview?.addEventListener('click', () => previewScreen.closePreviewDialog({
         previewDialog: $('preview-dialog'),
         previewImg: $('preview-img'),
+        previewFrame: $('preview-frame'),
         btnPreview: els.btnPreview,
     }));
     $('preview-dialog')?.addEventListener('click', (e) => {
         if (e.target.id === 'preview-dialog') previewScreen.closePreviewDialog({
             previewDialog: $('preview-dialog'),
             previewImg: $('preview-img'),
+            previewFrame: $('preview-frame'),
             btnPreview: els.btnPreview,
         });
     });
@@ -286,10 +289,28 @@ function initEventListeners() {
     // --- Keyboard: Escape cierra diálogos/scanner o no hace nada ---
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
-            if (!$('info-dialog')?.classList.contains('hidden')) { $('info-dialog').classList.add('hidden'); return; }
-            if (!$('error-dialog')?.classList.contains('hidden')) { closeError(); return; }
-            if (!$('preview-dialog')?.classList.contains('hidden')) { previewScreen.closePreviewDialog({ previewDialog: $('preview-dialog'), previewImg: $('preview-img'), btnPreview: els.btnPreview }); return; }
-            if (document.getElementById('screen-scanner')?.classList.contains('active')) { navigate('main'); return; }
+            if (!$('info-dialog')?.classList.contains('hidden')) {
+                $('info-dialog').classList.add('hidden');
+                $('btn-info')?.focus?.();
+                return;
+            }
+            if (!$('error-dialog')?.classList.contains('hidden')) {
+                closeError();
+                return;
+            }
+            if (!$('preview-dialog')?.classList.contains('hidden')) {
+                previewScreen.closePreviewDialog({
+                    previewDialog: $('preview-dialog'),
+                    previewImg: $('preview-img'),
+                    previewFrame: $('preview-frame'),
+                    btnPreview: els.btnPreview,
+                });
+                return;
+            }
+            if (document.getElementById('screen-scanner')?.classList.contains('active')) {
+                navigate('main');
+                return;
+            }
         }
     });
 }
