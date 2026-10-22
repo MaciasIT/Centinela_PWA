@@ -1,14 +1,7 @@
-/**
- * Tests de HU-27 (Ángel de la Guarda sin defectos) y regresión de F-5/F-6.
- *  - AC-01: una sola conversación de WhatsApp con el enlace y el veredicto.
- *  - AC-02: un solo contacto (un campo, una clave de storage, sin IDs duplicados).
- *  - F-5: no hay doble listener ni `window.__centinela`.
- *  - F-6: index.html no tiene IDs duplicados.
- */
 import { parseHTML } from 'linkedom';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
+import { join, dirname } from 'path';
 import * as guardianScreen from '../../js/screens/guardian.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -53,8 +46,6 @@ ok('HU-27 AC-01 / F-5: con contacto y veredicto no verde, UNA sola conversación
 
   document.getElementById('result-title').textContent = '¡No abras este enlace!';
 
-  // Cableado real: mount() NO debe registrar nada; el único listener lo pone
-  // bindSosButton (una sola vez, como en app.js).
   guardianScreen.mount();
   guardianScreen.bindSosButton(
     { btnSos: document.getElementById('btn-sos') },
@@ -63,6 +54,7 @@ ok('HU-27 AC-01 / F-5: con contacto y veredicto no verde, UNA sola conversación
       getResultTitle: () => document.getElementById('result-title').textContent,
       getBrandMsg: () => document.getElementById('brand-msg').textContent,
       getBrandVisible: () => document.getElementById('result-brand').style.display !== 'none',
+      getChannel: () => guardianScreen.loadGuardianChannel(),
     }
   );
 
@@ -95,11 +87,56 @@ ok('HU-27 AC-02: el contacto vive en UNA sola clave de storage', () => {
 
   if (guardianScreen.loadGuardianPhone() !== '34600112233') throw new Error('no se lee el contacto guardado');
 
-  // La clave antigua alias ('centinela_guardian') no debe volver a escribirse.
   if (globalThis.localStorage.getItem('centinela_guardian') !== null) {
     throw new Error('se sigue escribiendo la clave alias duplicada');
   }
   guardianScreen.clearGuardianPhone();
+});
+
+ok('Fase 6 AC-01: buildSosMessage adapta el prefijo para Telegram', () => {
+  const text = guardianScreen.buildSosMessage('https://x.test', 'PELIGROSO', '', false, 'telegram');
+  if (!text.startsWith('🛡️ *CENTINELA SOS* 👼')) throw new Error('prefijo Telegram inesperado: ' + text);
+});
+
+ok('Fase 6 AC-02: openSosByChannel abre Telegram por enlace compartido', () => {
+  bootDom();
+  guardianScreen.openSosByChannel('34600112233', 'mensaje', 'telegram');
+  if (opened.length !== 1) throw new Error('no se abrió Telegram');
+  if (!opened[0].startsWith('https://t.me/share/url?url=')) throw new Error('URL Telegram inesperada: ' + opened[0]);
+  tearDownDom();
+});
+
+ok('Fase 6 AC-02: openSosByChannel abre SMS con body', () => {
+  bootDom();
+  guardianScreen.openSosByChannel('34600112233', 'mensaje', 'sms');
+  if (opened.length !== 1) throw new Error('no se abrió SMS');
+  if (!opened[0].startsWith('sms:34600112233?body=')) throw new Error('URL SMS inesperada: ' + opened[0]);
+  tearDownDom();
+});
+
+ok('Fase 6 AC-02: openSosByChannel por defecto abre WhatsApp', () => {
+  bootDom();
+  guardianScreen.openSosByChannel('34600112233', 'mensaje');
+  if (opened.length !== 1) throw new Error('no se abrió WhatsApp');
+  if (!opened[0].startsWith('https://wa.me/34600112233?text=')) throw new Error('URL WhatsApp inesperada: ' + opened[0]);
+  tearDownDom();
+});
+
+ok('Fase 6 AC-03: el canal se persiste en localStorage', () => {
+  guardianScreen.clearGuardianChannel();
+  guardianScreen.saveGuardianChannel('telegram');
+  if (guardianScreen.loadGuardianChannel() !== 'telegram') throw new Error('no se leyó el canal guardado');
+  guardianScreen.saveGuardianChannel('sms');
+  if (guardianScreen.loadGuardianChannel() !== 'sms') throw new Error('no se leyó SMS');
+  guardianScreen.saveGuardianChannel('');
+  if (guardianScreen.loadGuardianChannel() !== 'whatsapp') throw new Error('el canal vacío debe volver a WhatsApp');
+  guardianScreen.clearGuardianChannel();
+});
+
+ok('Fase 6 AC-03: clearGuardianPhone no deja rastro del teléfono', () => {
+  guardianScreen.saveGuardianPhone('34600112233');
+  guardianScreen.clearGuardianPhone();
+  if (guardianScreen.loadGuardianPhone()) throw new Error('teléfono no se borró');
 });
 
 ok('F-5: guardian.js no usa window.__centinela', () => {
@@ -109,14 +146,13 @@ ok('F-5: guardian.js no usa window.__centinela', () => {
 
 ok('F-5: app.js no registra un segundo listener sobre #btn-sos', () => {
   const src = readFileSync(join(root, 'js', 'app.js'), 'utf8');
-  // El SOS debe cablearse solo con bindSosButton; ningún addEventListener directo.
-  if (/btnSos\??\.addEventListener/.test(src)) throw new Error('app.js vuelve a cablear btn-sos a mano (doble listener)');
+  if (/btnSos\\??\\.addEventListener/.test(src)) throw new Error('app.js vuelve a cablear btn-sos a mano (doble listener)');
   if (!/bindSosButton/.test(src)) throw new Error('app.js no usa el cableado único bindSosButton');
 });
 
 ok('F-6: index.html no tiene IDs duplicados ni el contacto duplicado', () => {
   const html = readFileSync(join(root, 'index.html'), 'utf8');
-  const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]);
+  const ids = [...html.matchAll(/\\bid="([^"]+)"/g)].map((m) => m[1]);
   const seen = new Set();
   const dups = new Set();
   for (const id of ids) {
@@ -125,7 +161,6 @@ ok('F-6: index.html no tiene IDs duplicados ni el contacto duplicado', () => {
   }
   if (dups.size) throw new Error('IDs duplicados: ' + [...dups].join(', '));
 
-  // El contacto vive SOLO en Ajustes; no debe haber un segundo campo en el shell.
   for (const forbidden of ['id="guardian-phone"', 'id="btn-save-guardian"', 'id="guardian-status"']) {
     if (html.includes(forbidden)) throw new Error(`index.html conserva el contacto duplicado: ${forbidden}`);
   }

@@ -278,6 +278,7 @@ function initEventListeners() {
             getResultTitle: () => $('result-title')?.textContent || '',
             getBrandMsg: () => $('brand-msg')?.textContent || '',
             getBrandVisible: () => $('result-brand')?.style.display !== 'none',
+            getChannel: () => guardianScreen.loadGuardianChannel(),
         }
     );
 

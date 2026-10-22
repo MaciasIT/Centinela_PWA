@@ -6,7 +6,7 @@
  * - información de versión / licenses
  */
 
-import { saveGuardianPhone, loadGuardianPhone, clearGuardianPhone } from '../screens/guardian.js';
+import { saveGuardianPhone, loadGuardianPhone, clearGuardianPhone, saveGuardianChannel, loadGuardianChannel, clearGuardianChannel } from '../screens/guardian.js';
 import { clearHistory as removeHistory } from '../history.js';
 import { resetStats } from '../stats.js';
 import { getStoredPreference, setStoredPreference, applyTheme } from '../core/theme.js';
@@ -45,10 +45,17 @@ function settingsMarkup() {
 
       <div class="settings-section">
         <h3>👼 Modo Ángel de la Guarda</h3>
-        <p class="settings-hint">Guarda un contacto para consultarle con un toque cuando algo no esté claro.</p>
+        <p class="settings-hint">Guarda un contacto y elige cómo consultarle cuando algo no esté claro.</p>
         <div class="settings-row">
           <input id="setting-guardian-phone" type="tel" class="input-tiny" placeholder="Ej: 34600112233" value="${guardianValue}">
           <button id="btn-save-guardian" class="btn btn-primary btn-xs" type="button">Guardar</button>
+        </div>
+        <div class="settings-row">
+          <select id="setting-guardian-channel" class="input-tiny">
+            <option value="whatsapp">WhatsApp</option>
+            <option value="telegram">Telegram</option>
+            <option value="sms">SMS</option>
+          </select>
         </div>
         <p id="guardian-status" class="guardian-status"></p>
         <button id="btn-clear-guardian" class="btn btn-secondary btn-xs" type="button">Quitar contacto</button>
@@ -76,6 +83,7 @@ function bindSettings(container) {
   const saveGuardianBtn = container.querySelector('#btn-save-guardian');
   const clearGuardianBtn = container.querySelector('#btn-clear-guardian');
   const guardianStatus = container.querySelector('#guardian-status');
+  const guardianChannel = container.querySelector('#setting-guardian-channel');
   const clearHistoryBtn = container.querySelector('#btn-clear-history-settings');
   const resetStatsBtn = container.querySelector('#btn-reset-stats');
 
@@ -89,6 +97,17 @@ function bindSettings(container) {
     });
   });
 
+  if (guardianChannel) {
+    const channel = loadGuardianChannel();
+    const options = Array.from(guardianChannel.options || []);
+    const idx = options.findIndex((o) => o.value === channel);
+    if (idx >= 0) guardianChannel.selectedIndex = idx;
+    guardianChannel.addEventListener('change', () => {
+      const selected = guardianChannel.options?.[guardianChannel.selectedIndex];
+      saveGuardianChannel(selected?.value || channel);
+    });
+  }
+
   if (saveGuardianBtn && guardianInput && guardianStatus) {
     saveGuardianBtn.addEventListener('click', async () => {
       const value = guardianInput.value.trim();
@@ -98,6 +117,7 @@ function bindSettings(container) {
         return;
       }
       await saveGuardianPhone(value);
+      if (guardianChannel) await saveGuardianChannel(guardianChannel.value);
       guardianStatus.textContent = 'Contacto guardado.';
       guardianStatus.className = 'guardian-status guardian-status-ok';
     });
@@ -106,7 +126,9 @@ function bindSettings(container) {
   if (clearGuardianBtn) {
     clearGuardianBtn.addEventListener('click', async () => {
       await clearGuardianPhone();
+      await clearGuardianChannel();
       if (guardianInput) guardianInput.value = '';
+      if (guardianChannel) guardianChannel.value = 'whatsapp';
       if (guardianStatus) {
         guardianStatus.textContent = 'Contacto eliminado.';
         guardianStatus.className = 'guardian-status guardian-status-ok';
@@ -116,7 +138,7 @@ function bindSettings(container) {
 
   if (clearHistoryBtn) {
     clearHistoryBtn.addEventListener('click', () => {
-      const ok = typeof confirm === 'function' ? confirm('¿Borrar todo el historial?') : true;
+      const ok = typeof window.confirm === 'function' ? window.confirm('¿Borrar todo el historial?') : true;
       if (!ok) return;
       removeHistory();
     });
@@ -124,7 +146,7 @@ function bindSettings(container) {
 
   if (resetStatsBtn) {
     resetStatsBtn.addEventListener('click', () => {
-      const ok = typeof confirm === 'function' ? confirm('¿Reiniciar estadísticas?') : true;
+      const ok = typeof window.confirm === 'function' ? window.confirm('¿Reiniciar estadísticas?') : true;
       if (!ok) return;
       resetStats();
       guardianStatus.textContent = 'Estadísticas reiniciadas.';
