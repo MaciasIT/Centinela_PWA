@@ -4,11 +4,13 @@
     "description": "Comprueba si un enlace es seguro antes de abrirlo.",
     "start_url": "/",
     "display": "standalone",
+    "screen_orientation": "portrait",
     "orientation": "portrait",
     "background_color": "#FFF6EC",
     "theme_color": "#FFF6EC",
     "lang": "es",
     "scope": "/",
+    "id": "/",
     "icons": [
         {
             "src": "/assets/icon-192.png",
