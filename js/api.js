@@ -6,6 +6,7 @@
  */
 
 import { normalizeUrl, withDefaultScheme } from './core/validation.js';
+import { evaluateOfflineReputation } from './core/reputation-offline.js';
 
 const API_URL = 'https://centinela-api.michelmacias-it.workers.dev';
 
@@ -24,16 +25,22 @@ function canonicalize(url) {
 }
 
 export async function checkLocalReputation(url) {
+  const offlineEval = evaluateOfflineReputation(url);
   try {
     const res = await fetch(`${API_URL}/api/local-check`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ url }),
     });
-    if (!res.ok) return null;
-    return await res.json();
+    if (!res.ok) return offlineEval;
+    const workerRep = await res.json();
+    return {
+      ...offlineEval,
+      ...workerRep,
+      reasons: Array.from(new Set([...(offlineEval.reasons || []), ...(workerRep.reasons || [])])),
+    };
   } catch {
-    return null;
+    return offlineEval;
   }
 }
 
