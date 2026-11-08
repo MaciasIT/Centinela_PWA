@@ -4,7 +4,7 @@
 [![PWA](https://img.shields.io/badge/PWA-offline--first-success.svg)](manifest.json)
 [![Accessibility](https://img.shields.io/badge/WCAG-2.1%20AA-brightgreen.svg)](docs/CUMPLIMIENTO.md)
 [![Privacy](https://img.shields.io/badge/Privacy-0%20Tracking-orange.svg)](docs/PRIVACIDAD.md)
-[![Tests](https://img.shields.io/badge/tests-254%20passed-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-270%20passed-brightgreen.svg)](tests/)
 
 **Centinela** es una Progressive Web App (PWA) móvil y desktop de seguridad preventiva diseñada para proteger a usuarios frente a ataques de **phishing, smishing, QRishing y enlaces maliciosos**.
 
@@ -96,7 +96,7 @@ npm run dev
 ### Ejecutar suite de pruebas
 
 ```bash
-# Ejecutar los 254 tests unitarios y de integración con Vitest
+# Ejecutar los 270 tests unitarios y de integración con Vitest
 npm test
 
 # Ejecutar tests con interfaz visual
