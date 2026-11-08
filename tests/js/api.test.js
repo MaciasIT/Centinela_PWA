@@ -1,4 +1,4 @@
-import { validateUrl, analyzeUrl } from '../../js/api.js';
+import { validateUrl, analyzeUrl, checkLocalReputation } from '../../js/api.js';
 import { normalizeUrl, withDefaultScheme } from '../../js/core/validation.js';
 import { classify } from '../../js/core/verdict.js';
 
@@ -232,6 +232,105 @@ okAsync('T3c/C-3: analyzeUrl envía al Worker la URL canónica del normalizador 
     if (globalThis.localStorage) globalThis.localStorage.removeItem('centinela_cache');
     await analyzeUrl('https://WWW.Ejemplo.com/a/?utm_source=x&b=2&a=1#frag');
     if (scanBody !== 'https://ejemplo.com/a?a=1&b=2') throw new Error(`URL enviada: ${scanBody}`);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+/* ── Caos & Auditoría Adversarial PWA: Resiliencia ante 429 ── */
+
+okAsync('Caos PWA: 429 RATE_LIMITED en /api/scan produce un mensaje claro en lenguaje llano con userFacing', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    const u = String(url);
+    if (u.includes('/api/local-check')) return { ok: true, json: async () => ({}) };
+    if (u.includes('/api/scan')) {
+      return {
+        ok: false,
+        status: 429,
+        json: async () => ({
+          error: { code: 'RATE_LIMITED', message: 'Rate limit exceeded' },
+        }),
+      };
+    }
+    throw new Error(`fetch inesperado: ${u}`);
+  };
+  try {
+    if (globalThis.localStorage) globalThis.localStorage.removeItem('centinela_cache');
+    let errorCaught = null;
+    try {
+      await analyzeUrl(`https://saturado.example/${Date.now()}`);
+    } catch (err) {
+      errorCaught = err;
+    }
+    if (!errorCaught) throw new Error('Se esperaba que analyzeUrl lanzara un error ante HTTP 429');
+    if (!errorCaught.userFacing) throw new Error('El error debe llevar la marca userFacing: true para no ser enmascarado por el catch de la UI');
+    if (!/Has hecho demasiadas comprobaciones/i.test(errorCaught.message)) {
+      throw new Error(`Mensaje incorrecto o técnico: ${errorCaught.message}`);
+    }
+    if (/RATE_LIMITED|429|cloudflare|worker/i.test(errorCaught.message)) {
+      throw new Error(`Fuga de detalles técnicos en el mensaje al usuario: ${errorCaught.message}`);
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+okAsync('Caos PWA: motor heurístico offline sigue 100% operativo cuando /api/local-check responde 429', async () => {
+  const originalFetch = globalThis.fetch;
+  let localCheckCalls = 0;
+  globalThis.fetch = async (url) => {
+    const u = String(url);
+    if (u.includes('/api/local-check')) {
+      localCheckCalls += 1;
+      return {
+        ok: false,
+        status: 429,
+        json: async () => ({ error: { code: 'RATE_LIMITED' } }),
+      };
+    }
+    throw new Error(`fetch inesperado: ${u}`);
+  };
+  try {
+    // Caso 1: URL sospechosa con TLD peligroso
+    const repSuspicious = await checkLocalReputation('https://banco-login.xyz/cuenta');
+    if (localCheckCalls !== 1) throw new Error(`Llamadas a local-check esperadas 1, hubo ${localCheckCalls}`);
+    if (!repSuspicious.isOfflineAnalysis) throw new Error('Debe marcar isOfflineAnalysis: true como respaldo');
+    if (repSuspicious.classification === 'safe') throw new Error('Un TLD .xyz no debe ser catalogado como seguro en evaluación offline');
+    if (!repSuspicious.reasons.some(r => r.includes('.xyz'))) throw new Error('Debe incluir la razón heurística del TLD de riesgo');
+
+    // Caso 2: URL con credenciales incrustadas
+    const repDanger = await checkLocalReputation('https://user:pass@fake-domain.com/login');
+    if (repDanger.classification !== 'danger') throw new Error('Credenciales incrustadas deben clasificarse como danger');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+okAsync('Caos PWA: saturación simultánea (429 en local-check y 429 en scan) no rompe la UI ni el flujo de comprobación', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    const u = String(url);
+    if (u.includes('/api/local-check')) {
+      return { ok: false, status: 429, json: async () => ({ error: { code: 'RATE_LIMITED' } }) };
+    }
+    if (u.includes('/api/scan')) {
+      return { ok: false, status: 429, json: async () => ({ error: { code: 'RATE_LIMITED' } }) };
+    }
+    throw new Error(`fetch inesperado: ${u}`);
+  };
+  try {
+    if (globalThis.localStorage) globalThis.localStorage.removeItem('centinela_cache');
+    // Debe ejecutar local-check y degradar a heurística offline, luego fallar scan limpiamente
+    let caught = null;
+    try {
+      await analyzeUrl('https://phishing-punycode-xn--pple-43a.com');
+    } catch (err) {
+      caught = err;
+    }
+    if (!caught) throw new Error('analyzeUrl debió lanzar error');
+    if (!caught.userFacing) throw new Error('El error debe ser userFacing');
+    if (!caught.message.includes('demasiadas comprobaciones')) throw new Error(`Mensaje inesperado: ${caught.message}`);
   } finally {
     globalThis.fetch = originalFetch;
   }

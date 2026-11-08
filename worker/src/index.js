@@ -105,6 +105,67 @@ function errorResponse(status, code, origin, extraHeaders) {
   );
 }
 
+const CACHE_TTL_SECONDS = 86400; // 24 horas (ADR-02)
+
+/**
+ * Genera cabeceras canónicas IETF para rate limiting y Retry-After.
+ */
+function buildRateLimitHeaders({ limit, remaining, reset, retryAfter = null, policy = null }) {
+  const headers = {};
+  if (limit !== undefined && limit !== null) headers['RateLimit-Limit'] = String(limit);
+  if (remaining !== undefined && remaining !== null) headers['RateLimit-Remaining'] = String(remaining);
+  if (reset !== undefined && reset !== null) headers['RateLimit-Reset'] = String(reset);
+  if (policy) headers['RateLimit-Policy'] = policy;
+  if (retryAfter !== null && retryAfter !== undefined) {
+    headers['Retry-After'] = String(retryAfter);
+  }
+  return headers;
+}
+
+/**
+ * Lee de Cloudflare KV de forma segura y devuelve el payload parseado o null.
+ */
+async function getCachedAnalysis(env, url) {
+  const kv = env && env.CENTINELA_CACHE;
+  if (!kv || typeof kv.get !== 'function') return null;
+  try {
+    const hash = await sha256Hex(url);
+    const key = `vt:url:${hash}`;
+    const raw = await kv.get(key, 'text');
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Guarda en Cloudflare KV de forma no bloqueante con expiración de 24h.
+ */
+async function setCachedAnalysis(env, url, analysisResult) {
+  const kv = env && env.CENTINELA_CACHE;
+  if (!kv || typeof kv.put !== 'function') return;
+  try {
+    const hash = await sha256Hex(url);
+    const key = `vt:url:${hash}`;
+    const payload = JSON.stringify(analysisResult);
+    await kv.put(key, payload, { expirationTtl: CACHE_TTL_SECONDS });
+  } catch {
+    // Silencioso: fallo en caché no debe romper la respuesta
+  }
+}
+
+/* ── Utilidades criptográficas ────────────────────────────────────── */
+
+export async function sha256Hex(str) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(str);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
 /* ── Cuota global exacta (DO `QuotaGuard`) ───────────────────────── */
 
 /**
@@ -115,13 +176,29 @@ function errorResponse(status, code, origin, extraHeaders) {
 async function acquireQuota(env) {
   const ns = env && env.QUOTA_GUARD;
   if (!ns || typeof ns.idFromName !== 'function' || typeof ns.get !== 'function') {
-    return { allowed: true, retryAfter: 0, enforced: false };
+    return {
+      allowed: true,
+      reason: null,
+      retryAfter: 0,
+      enforced: false,
+      limit: 4,
+      remaining: 4,
+      reset: 60,
+    };
   }
   const id = ns.idFromName(QUOTA_INSTANCE_NAME);
   const stub = ns.get(id);
   const res = await stub.fetch(`https://quota-guard/${QUOTA_INSTANCE_NAME}`);
   const data = await res.json();
-  return { allowed: !!data.allowed, retryAfter: data.retryAfter || 0, enforced: true };
+  return {
+    allowed: !!data.allowed,
+    reason: data.reason || null,
+    retryAfter: data.retryAfter || 0,
+    enforced: true,
+    limit: data.limit ?? 4,
+    remaining: data.remaining ?? 0,
+    reset: data.reset ?? data.retryAfter ?? 60,
+  };
 }
 
 /* ── Freno de inundación por IP (binding, best-effort) ───────────── */
@@ -209,7 +286,14 @@ async function handleScan(request, env, corsOrigin) {
   // Va ANTES de leer el cuerpo (H-3): un actor en inundación se corta sin que
   // lleguemos a bufferizar y parsear su petición.
   if (!(await ipFloodBrake(request, env))) {
-    return errorResponse(429, 'RATE_LIMITED', corsOrigin);
+    const ipHeaders = buildRateLimitHeaders({
+      limit: 30,
+      remaining: 0,
+      reset: 60,
+      retryAfter: 60,
+      policy: '30;w=60',
+    });
+    return errorResponse(429, 'RATE_LIMITED', corsOrigin, ipHeaders);
   }
 
   // Tamaño declarado: se rechaza por cabecera, sin leer el cuerpo (H-3).
@@ -243,20 +327,54 @@ async function handleScan(request, env, corsOrigin) {
   // Conserva el esquema original del usuario (C-1): no se analiza otra variante.
   const targetUrl = normalizeUrl(checked.url) || checked.url;
 
-  // Techo global EXACTO de cuota (DO `QuotaGuard`).
+  // 1. Capa de Caché Compartida KV (ADR-02)
+  const cachedResult = await getCachedAnalysis(env, targetUrl);
+  if (cachedResult) {
+    return jsonResponse(
+      200,
+      { results: [cachedResult], source: SOURCE, version: APP_VERSION, cached: true },
+      corsOrigin,
+      {
+        'CF-Cache-Status': 'HIT',
+        'Cache-Control': 'public, max-age=86400',
+      }
+    );
+  }
+
+  // 2. Techo global EXACTO de cuota (DO `QuotaGuard`).
   const quota = await acquireQuota(env);
+  const quotaHeaders = buildRateLimitHeaders({
+    limit: quota.limit,
+    remaining: quota.remaining,
+    reset: quota.reset,
+    retryAfter: quota.allowed ? null : (quota.retryAfter || 60),
+    policy: `${quota.limit};w=${quota.reason === 'day' ? 86400 : 60}`,
+  });
+
   if (!quota.allowed) {
-    return errorResponse(503, 'QUOTA_EXCEEDED', corsOrigin, {
-      'Retry-After': String(quota.retryAfter || 60),
-    });
+    return errorResponse(503, 'QUOTA_EXCEEDED', corsOrigin, quotaHeaders);
   }
 
   try {
     const result = await checkVirusTotal(targetUrl, env && env.VIRUSTOTAL_API_KEY);
-    return jsonResponse(200, { results: [result], source: SOURCE, version: APP_VERSION }, corsOrigin);
+    await setCachedAnalysis(env, targetUrl, result);
+    return jsonResponse(
+      200,
+      { results: [result], source: SOURCE, version: APP_VERSION },
+      corsOrigin,
+      {
+        ...quotaHeaders,
+        'CF-Cache-Status': 'MISS',
+      }
+    );
   } catch (err) {
     if (err instanceof UpstreamError && err.code === 'QUOTA_EXCEEDED') {
-      return errorResponse(503, 'QUOTA_EXCEEDED', corsOrigin, { 'Retry-After': '60' });
+      return errorResponse(503, 'QUOTA_EXCEEDED', corsOrigin, {
+        'Retry-After': '60',
+        'RateLimit-Limit': '4',
+        'RateLimit-Remaining': '0',
+        'RateLimit-Reset': '60',
+      });
     }
     // El mensaje del proveedor NUNCA se filtra (NFR-S2).
     return errorResponse(502, 'UPSTREAM_UNAVAILABLE', corsOrigin);
@@ -286,7 +404,14 @@ async function handleLocalCheck(request, env, corsOrigin) {
 
   // Mismo freno de inundación por IP que /api/scan (H-2), antes de leer el cuerpo.
   if (!(await ipFloodBrake(request, env))) {
-    return errorResponse(429, 'RATE_LIMITED', corsOrigin);
+    const ipHeaders = buildRateLimitHeaders({
+      limit: 30,
+      remaining: 0,
+      reset: 60,
+      retryAfter: 60,
+      policy: '30;w=60',
+    });
+    return errorResponse(429, 'RATE_LIMITED', corsOrigin, ipHeaders);
   }
 
   if (declaredBodyTooLarge(request)) {

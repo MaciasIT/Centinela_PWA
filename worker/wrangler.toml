@@ -46,6 +46,12 @@ class_name = "QuotaGuard"
 tag = "v1"
 new_sqlite_classes = ["QuotaGuard"]
 
+# ── Caché compartida del Worker (Cloudflare KV, ADR-02) ───────────────
+[[kv_namespaces]]
+binding = "CENTINELA_CACHE"
+id = "centinela_cache_prod"
+preview_id = "centinela_cache_preview"
+
 # ── Secretos ─────────────────────────────────────────────────────────
 # NINGUNA clave vive aquí. VIRUSTOTAL_API_KEY se configura SOLO con:
 #   wrangler secret put VIRUSTOTAL_API_KEY

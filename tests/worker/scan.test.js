@@ -291,6 +291,9 @@ okAsync('binding por IP excedido → 429 RATE_LIMITED antes de llamar a VT', asy
     assert(res.status === 429, `status ${res.status}`);
     const data = await res.json();
     assert(data.error.code === 'RATE_LIMITED', `código ${data.error.code}`);
+    assert(res.headers.get('Retry-After') === '60', 'debe incluir Retry-After: 60');
+    assert(res.headers.get('RateLimit-Limit') === '30', 'debe incluir RateLimit-Limit: 30');
+    assert(res.headers.get('RateLimit-Remaining') === '0', 'debe incluir RateLimit-Remaining: 0');
     assert(seen.urls.length === 0, 'no debe llamarse a VT');
     assert(quota.seen.fetches === 0, 'no debe consumirse token de cuota si el freno por IP ya cortó');
   });
@@ -446,6 +449,67 @@ okAsync('sin binding QUOTA_GUARD el Worker sigue sirviendo (gate en CI, no en ru
   await withVtMock(async () => {
     const res = await worker.fetch(makeRequest('POST', '/api/scan', { url: 'https://ejemplo.com' }), env, {});
     assert(res.status === 200, `status ${res.status}`);
+  });
+});
+
+/* ── Caos & Auditoría Adversarial: Saturación y Cuotas (ADR-01..04) ── */
+
+okAsync('Caos: ráfaga adversarial frena en 429 RATE_LIMITED y llamadas excesivas no tocan DO ni VT', async () => {
+  const quota = makeQuotaNamespace();
+  const limiter = makeLimiter(3); // Solo permite 3 peticiones
+  const env = {
+    VIRUSTOTAL_API_KEY: 'k', ALLOWED_ORIGINS: ALLOWED,
+    QUOTA_GUARD: quota.namespace, SCAN_RATE_LIMITER: limiter.binding,
+  };
+  await withVtMock(async (seen) => {
+    const statuses = [];
+    for (let i = 0; i < 8; i++) {
+      const res = await worker.fetch(makeRequest('POST', '/api/scan', { url: `https://ejemplo${i}.com` }), env, {});
+      statuses.push(res.status);
+      if (res.status === 429) {
+        assert(res.headers.get('Retry-After') === '60', 'debe incluir Retry-After: 60');
+        assert(res.headers.get('RateLimit-Remaining') === '0', 'RateLimit-Remaining debe ser 0');
+        assert(res.headers.get('RateLimit-Limit') === '30', 'RateLimit-Limit debe ser 30');
+      }
+    }
+    assert(JSON.stringify(statuses) === JSON.stringify([200, 200, 200, 429, 429, 429, 429, 429]), `estados inesperados: ${JSON.stringify(statuses)}`);
+    assert(seen.urls.length === 3, `VT debió llamarse exactamente 3 veces, fue ${seen.urls.length}`);
+    assert(quota.seen.fetches === 3, `DO QuotaGuard debió llamarse exactamente 3 veces, fue ${quota.seen.fetches}`);
+  });
+});
+
+okAsync('Caos: ráfaga con KV Cache (ADR-02) sirve HIT con CF-Cache-Status y 0 consumo de cuota/VT', async () => {
+  const quota = makeQuotaNamespace();
+  const limiter = makeLimiter(100);
+  const kvStore = new Map();
+  const kv = {
+    get: async (k) => kvStore.get(k) || null,
+    put: async (k, v) => { kvStore.set(k, v); },
+  };
+  const env = {
+    VIRUSTOTAL_API_KEY: 'k', ALLOWED_ORIGINS: ALLOWED,
+    QUOTA_GUARD: quota.namespace, SCAN_RATE_LIMITER: limiter.binding,
+    CENTINELA_CACHE: kv,
+  };
+  await withVtMock(async (seen) => {
+    // Petición 1: MISS (llama a VT y consume DO)
+    const res1 = await worker.fetch(makeRequest('POST', '/api/scan', { url: 'https://mismo-enlace.com/login' }), env, {});
+    assert(res1.status === 200, `res1 status ${res1.status}`);
+    assert(res1.headers.get('CF-Cache-Status') === 'MISS', 'primera petición debe ser MISS');
+    assert(seen.urls.length === 1, 'primera petición llama a VT');
+    assert(quota.seen.fetches === 1, 'primera petición consulta QuotaGuard');
+
+    // Ráfaga subsiguiente de 10 peticiones a la misma URL (con distintas variantes de query params/tracking)
+    for (let i = 0; i < 10; i++) {
+      const resHit = await worker.fetch(makeRequest('POST', '/api/scan', { url: `https://mismo-enlace.com/login?utm_source=spam${i}` }), env, {});
+      assert(resHit.status === 200, `resHit status ${resHit.status}`);
+      assert(resHit.headers.get('CF-Cache-Status') === 'HIT', 'petición repetida debe ser HIT');
+      const body = await resHit.json();
+      assert(body.cached === true, 'body debe indicar cached: true');
+    }
+    // Las 10 peticiones no consumieron nada de VT ni cuota DO
+    assert(seen.urls.length === 1, `VT no debió volver a llamarse: ${seen.urls.length}`);
+    assert(quota.seen.fetches === 1, `DO no debió volver a llamarse: ${quota.seen.fetches}`);
   });
 });
 

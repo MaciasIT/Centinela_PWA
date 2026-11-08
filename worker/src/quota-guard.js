@@ -54,11 +54,17 @@ export function takeToken(state, nowMs) {
   if (s.minuteStart !== minute) { s.minuteStart = minute; s.minuteCount = 0; }
   if (s.dayStart !== day) { s.dayStart = day; s.dayCount = 0; }
 
+  const minuteReset = Math.max(1, Math.ceil(((minute + 1) * MS_PER_MINUTE - nowMs) / 1000));
+  const dayReset = Math.max(1, Math.ceil(((day + 1) * MS_PER_DAY - nowMs) / 1000));
+
   if (s.dayCount >= PER_DAY_LIMIT) {
     return {
       allowed: false,
       reason: 'day',
-      retryAfter: Math.max(1, Math.ceil(((day + 1) * MS_PER_DAY - nowMs) / 1000)),
+      retryAfter: dayReset,
+      limit: PER_DAY_LIMIT,
+      remaining: 0,
+      reset: dayReset,
       state: s,
     };
   }
@@ -67,14 +73,25 @@ export function takeToken(state, nowMs) {
     return {
       allowed: false,
       reason: 'minute',
-      retryAfter: Math.max(1, Math.ceil(((minute + 1) * MS_PER_MINUTE - nowMs) / 1000)),
+      retryAfter: minuteReset,
+      limit: PER_MINUTE_LIMIT,
+      remaining: 0,
+      reset: minuteReset,
       state: s,
     };
   }
 
   s.minuteCount += 1;
   s.dayCount += 1;
-  return { allowed: true, reason: null, retryAfter: 0, state: s };
+  return {
+    allowed: true,
+    reason: null,
+    retryAfter: 0,
+    limit: PER_MINUTE_LIMIT,
+    remaining: Math.max(0, PER_MINUTE_LIMIT - s.minuteCount),
+    reset: minuteReset,
+    state: s,
+  };
 }
 
 /**
@@ -103,6 +120,9 @@ export class QuotaGuard {
         retryAfter: result.retryAfter,
         minuteCount: result.state.minuteCount,
         dayCount: result.state.dayCount,
+        limit: result.limit,
+        remaining: result.remaining,
+        reset: result.reset,
       }),
       { status: 200, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
     );
