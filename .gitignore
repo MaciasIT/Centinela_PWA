@@ -15,3 +15,9 @@ PLAN_MEJORAS_*.md
 .dev.vars
 verdicts/
 
+# Playwright
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+

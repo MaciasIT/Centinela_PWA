@@ -99,8 +99,8 @@ npm run dev
 # Ejecutar los 275 tests unitarios y de integración con el runner
 npm test
 
-# Ejecutar tests con interfaz visual
-npm run test:ui
+# Ejecutar los tests E2E en navegador real (Playwright)
+npm run test:e2e
 ```
 
 ### Compilación para producción
