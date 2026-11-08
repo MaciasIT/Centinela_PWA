@@ -12,4 +12,4 @@ PLAN_MEJORAS_*.md
 # Toda clave de API se configura con `wrangler secret put`.
 .env
 .env.*
-.dev.vars
+.dev.varsverdicts/
