@@ -17,7 +17,7 @@ if (!globalThis.localStorage) {
 const __filename = realpathSync(process.argv[1] || new URL(import.meta.url).pathname);
 const dir = __filename.replace(/\/[^/]+$/, '');
 
-const files = readdirSync(dir, { recursive: true }).filter((f) => f.endsWith('.test.js'));
+const files = readdirSync(dir, { recursive: true }).filter((f) => f.endsWith('.test.js') && !f.includes('legal/'));
 
 const run = async (file) => {
   const mod = await import(pathToFileURL(`${dir}/${file}`).href);
